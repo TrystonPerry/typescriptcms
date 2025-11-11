@@ -40,6 +40,13 @@
     "description": "The software license for the site.",
     "enum": ["MIT", "GPL-3.0", "Apache-2.0", "BSD-3-Clause"],
     "default": "MIT",
-    "value": "MIT"
+    "value": "Apache-2.0"
+  },
+  "cardColor": {
+    "type": "string",
+    "title": "Card Color",
+    "description": "The color of the card.",
+    "default": "#252d37",
+    "value": "#252d37"
   }
 }
