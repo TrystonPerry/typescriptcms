@@ -6,7 +6,7 @@
     "maxLength": 60,
     "minLength": 1,
     "default": "TypeScript CMS",
-    "value": "TS CMS"
+    "value": "TypeScript CMS!!!"
   },
   "description": {
     "type": "string",
