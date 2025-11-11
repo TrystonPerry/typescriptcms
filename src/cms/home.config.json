@@ -5,7 +5,8 @@
     "description": "The main title of the website.",
     "maxLength": 60,
     "minLength": 1,
-    "default": "TypeScript CMS"
+    "default": "TypeScript CMS",
+    "value": "TS CMS"
   },
   "description": {
     "type": "string",
@@ -13,7 +14,8 @@
     "description": "A brief description of the website.",
     "maxLength": 200,
     "minLength": 10,
-    "default": "A simple CMS built with TypeScript"
+    "default": "A simple CMS built with TypeScript",
+    "value": "A simple CMS built with TypeScript"
   },
   "author": {
     "type": "string",
@@ -21,20 +23,23 @@
     "description": "Name of the website author or owner.",
     "maxLength": 50,
     "minLength": 2,
-    "default": "John Doe"
+    "default": "John Doe",
+    "value": "Tryston Kuhl"
   },
   "version": {
     "type": "string",
     "title": "Version",
     "description": "The current version of the site.",
     "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
-    "default": "1.0.0"
+    "default": "1.0.0",
+    "value": "1.0.0"
   },
   "license": {
-    "type": "string",
+    "type": "enum",
     "title": "License",
     "description": "The software license for the site.",
     "enum": ["MIT", "GPL-3.0", "Apache-2.0", "BSD-3-Clause"],
-    "default": "MIT"
+    "default": "MIT",
+    "value": "MIT"
   }
 }
