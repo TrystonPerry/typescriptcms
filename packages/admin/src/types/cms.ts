@@ -56,3 +56,26 @@ export interface CmsConfigFile {
   config: CmsConfigDocument | null;
   parseError?: string;
 }
+
+export interface PreviewSessionResponse {
+  sessionId: string;
+  owner: string;
+  repo: string;
+  createdAt: string;
+  expiresAt: string;
+}
+
+export interface PreviewSnapshotFile {
+  path: string;
+  content: CmsConfigDocument;
+}
+
+export interface PreviewSnapshotResponse {
+  sessionId: string;
+  owner: string;
+  repo: string;
+  createdAt: string;
+  updatedAt: string;
+  expiresAt: string;
+  files: PreviewSnapshotFile[];
+}

@@ -1,6 +1,8 @@
 import type {
   CmsConfigDocument,
   CmsConfigFile,
+  PreviewSessionResponse,
+  PreviewSnapshotResponse,
   RepoSummary,
   SessionResponse,
   TreeEntry,
@@ -18,7 +20,14 @@ async function request<T>(url: string, init: RequestInit = {}): Promise<T> {
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(errorText || `Request failed with status ${response.status}`);
+    let parsedMessage = "";
+
+    try {
+      const parsed = JSON.parse(errorText) as { message?: string };
+      parsedMessage = parsed.message ?? "";
+    } catch {}
+
+    throw new Error(parsedMessage || errorText || `Request failed with status ${response.status}`);
   }
 
   if (response.status === 204) {
@@ -76,5 +85,41 @@ export function saveCmsFile(options: {
   return request<unknown>("/api/cms-config-file", {
     method: "PUT",
     body: JSON.stringify(options),
+  });
+}
+
+export function createPreviewSession(options: {
+  owner: string;
+  repo: string;
+}): Promise<PreviewSessionResponse> {
+  return request<PreviewSessionResponse>("/api/preview/sessions", {
+    method: "POST",
+    body: JSON.stringify(options),
+  });
+}
+
+export function updatePreviewFile(options: {
+  sessionId: string;
+  path: string;
+  content: CmsConfigDocument;
+}): Promise<unknown> {
+  return request<unknown>(`/api/preview/sessions/${encodeURIComponent(options.sessionId)}/file`, {
+    method: "PUT",
+    body: JSON.stringify({
+      path: options.path,
+      content: options.content,
+    }),
+  });
+}
+
+export function getPreviewSnapshot(sessionId: string): Promise<PreviewSnapshotResponse> {
+  return request<PreviewSnapshotResponse>(
+    `/api/preview/sessions/${encodeURIComponent(sessionId)}/snapshot`,
+  );
+}
+
+export function deletePreviewSession(sessionId: string): Promise<void> {
+  return request<void>(`/api/preview/sessions/${encodeURIComponent(sessionId)}`, {
+    method: "DELETE",
   });
 }

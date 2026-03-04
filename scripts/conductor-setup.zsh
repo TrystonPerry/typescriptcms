@@ -6,7 +6,7 @@ set -euo pipefail
 # every worktree should be able to answer "what do I need to run?"
 # with one command and predictable output.
 
-print "[conductor:setup] Preparing this workspace to run both admin and library apps."
+print "[conductor:setup] Preparing this workspace to run both admin and example apps."
 print "[conductor:setup] This script keeps setup repeatable across every Conductor worktree."
 
 if [[ ! -f "package.json" ]]; then

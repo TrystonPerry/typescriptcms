@@ -21,6 +21,19 @@ if (!sessionSecret) {
 }
 
 const app = express();
+const PREVIEW_SESSION_TTL_MS = 2 * 60 * 60 * 1000;
+
+interface PreviewSession {
+  id: string;
+  owner: string;
+  repo: string;
+  createdAt: number;
+  updatedAt: number;
+  expiresAt: number;
+  files: Map<string, Record<string, unknown>>;
+}
+
+const previewSessions = new Map<string, PreviewSession>();
 
 app.use(
   cors({
@@ -30,6 +43,43 @@ app.use(
 );
 app.use(express.json({ limit: "1mb" }));
 app.use(cookieParser(sessionSecret));
+
+function now(): number {
+  return Date.now();
+}
+
+function cleanupExpiredPreviewSessions(): void {
+  const current = now();
+
+  for (const [sessionId, session] of previewSessions.entries()) {
+    if (session.expiresAt <= current) {
+      previewSessions.delete(sessionId);
+    }
+  }
+}
+
+function touchPreviewSession(session: PreviewSession): void {
+  const current = now();
+  session.updatedAt = current;
+  session.expiresAt = current + PREVIEW_SESSION_TTL_MS;
+}
+
+function getValidPreviewSession(sessionId: string): PreviewSession | undefined {
+  const session = previewSessions.get(sessionId);
+
+  if (!session) {
+    return undefined;
+  }
+
+  if (session.expiresAt <= now()) {
+    previewSessions.delete(sessionId);
+    return undefined;
+  }
+
+  return session;
+}
+
+setInterval(cleanupExpiredPreviewSessions, 5 * 60 * 1000).unref();
 
 function pathEncode(value: string): string {
   return value
@@ -403,6 +453,97 @@ app.get("/api/cms-configs", requireGithubAuth, async (req, res) => {
       message: withGithubErrorHint((error as Error).message),
     });
   }
+});
+
+app.post("/api/preview/sessions", requireGithubAuth, (req, res) => {
+  const owner = typeof req.body.owner === "string" ? req.body.owner : undefined;
+  const repo = typeof req.body.repo === "string" ? req.body.repo : undefined;
+
+  if (!owner || !repo) {
+    res.status(400).json({ message: "owner and repo are required." });
+    return;
+  }
+
+  const createdAt = now();
+  const sessionId = randomUUID();
+
+  const session: PreviewSession = {
+    id: sessionId,
+    owner,
+    repo,
+    createdAt,
+    updatedAt: createdAt,
+    expiresAt: createdAt + PREVIEW_SESSION_TTL_MS,
+    files: new Map(),
+  };
+
+  previewSessions.set(sessionId, session);
+
+  res.status(201).json({
+    sessionId: session.id,
+    owner: session.owner,
+    repo: session.repo,
+    createdAt: new Date(session.createdAt).toISOString(),
+    expiresAt: new Date(session.expiresAt).toISOString(),
+  });
+});
+
+app.put("/api/preview/sessions/:sessionId/file", requireGithubAuth, (req, res) => {
+  const sessionId = req.params.sessionId;
+  const filePath = typeof req.body.path === "string" ? req.body.path : undefined;
+  const content = req.body.content;
+
+  if (!filePath || typeof content !== "object" || content === null) {
+    res.status(400).json({ message: "path and content are required." });
+    return;
+  }
+
+  const session = getValidPreviewSession(sessionId);
+
+  if (!session) {
+    res.status(404).json({ message: "Preview session not found or expired." });
+    return;
+  }
+
+  session.files.set(filePath, content as Record<string, unknown>);
+  touchPreviewSession(session);
+
+  res.json({
+    sessionId: session.id,
+    path: filePath,
+    updatedAt: new Date(session.updatedAt).toISOString(),
+    expiresAt: new Date(session.expiresAt).toISOString(),
+  });
+});
+
+app.get("/api/preview/sessions/:sessionId/snapshot", requireGithubAuth, (req, res) => {
+  const sessionId = req.params.sessionId;
+  const session = getValidPreviewSession(sessionId);
+
+  if (!session) {
+    res.status(404).json({ message: "Preview session not found or expired." });
+    return;
+  }
+
+  touchPreviewSession(session);
+
+  res.json({
+    sessionId: session.id,
+    owner: session.owner,
+    repo: session.repo,
+    createdAt: new Date(session.createdAt).toISOString(),
+    updatedAt: new Date(session.updatedAt).toISOString(),
+    expiresAt: new Date(session.expiresAt).toISOString(),
+    files: Array.from(session.files.entries()).map(([path, content]) => ({
+      path,
+      content,
+    })),
+  });
+});
+
+app.delete("/api/preview/sessions/:sessionId", requireGithubAuth, (req, res) => {
+  previewSessions.delete(req.params.sessionId);
+  res.status(204).send();
 });
 
 app.put("/api/cms-config-file", requireGithubAuth, async (req, res) => {

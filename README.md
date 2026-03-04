@@ -1,9 +1,10 @@
 # TypeScript CMS Workspace
 
-This repository now has two packages:
+This repository contains three packages:
 
-- `packages/library`: core TypeScript CMS plugin and example usage
-- `packages/admin`: Vue-based admin UI for GitHub auth, repo selection, folder browsing, and CMS config editing
+- `packages/library`: plugin-only package that generates TypeScript files from CMS `*.config.json` specs
+- `packages/admin`: Vue admin UI for GitHub auth, repo browsing, CMS editing, and preview session APIs
+- `packages/example`: React example app that consumes generated CMS data and demonstrates preview injection
 
 ## Quick start
 
@@ -13,54 +14,54 @@ This repository now has two packages:
 npm install
 ```
 
-2. Run the admin UI:
+2. Run admin UI:
 
 ```bash
 npm run dev:admin
 ```
 
-3. Run the library example app:
+3. Run example app:
 
 ```bash
-npm run dev:library
+npm run dev:example
 ```
 
 ## Admin OAuth setup
 
-Create an OAuth App in GitHub and set callback URL to:
+Create a GitHub OAuth App with callback URL:
 
 - `http://localhost:5174/auth/github/callback` when using `conductor:run`
 - `http://localhost:8787/auth/github/callback` when using `npm run dev:admin`
 
-Then copy `packages/admin/.env.example` to `packages/admin/.env` and fill in the credentials.
+Then copy `packages/admin/.env.example` to `packages/admin/.env` and set your credentials.
 
-Important: this project currently expects a **GitHub OAuth App** token flow.
-If you configure a GitHub App instead, you must grant `Contents: Read and write`
-permissions and reinstall/re-authorize, or saves will fail with
-`Resource not accessible by integration`.
+## Conductor setup
 
-## Conductor Worktree Setup
+This repo includes `conductor.json` plus:
 
-This repo now includes a `conductor.json` file plus two worktree scripts:
+- `scripts/conductor-setup.zsh`
+- `scripts/conductor-run.zsh`
 
-- `scripts/conductor-setup.zsh`: dependency install + admin env bootstrap
-- `scripts/conductor-run.zsh`: starts admin API, admin UI, and library UI together
-
-Run locally the same way Conductor does:
+Run locally with:
 
 ```bash
 npm run conductor:setup
 npm run conductor:run
 ```
 
-The run script is Conductor-aware and uses `CONDUCTOR_PORT` as the base:
+With `CONDUCTOR_PORT` as base:
 
 - admin UI: `${CONDUCTOR_PORT}/admin`
 - admin API: `${CONDUCTOR_PORT + 1}`
-- library UI: `${CONDUCTOR_PORT + 2}`
+- example app: `${CONDUCTOR_PORT + 2}`
 
-If you run outside Conductor, default ports are:
+Outside Conductor defaults:
 
 - admin UI: `http://localhost:5173/admin`
 - admin API: `http://localhost:5174`
-- library UI: `http://localhost:5175`
+- example app: `http://localhost:5175`
+
+## Preview injection mode
+
+`/admin` creates an ephemeral preview session and streams unsaved `.config.json` drafts to the preview API.
+The example app loads drafts through `?previewSession=<sessionId>` and overlays draft `value` fields at runtime.

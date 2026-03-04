@@ -100,7 +100,7 @@ export default defineComponent({
       default: "",
     },
   },
-  emits: ["save-file"],
+  emits: ["save-file", "preview-change"],
   data() {
     return {
       docs: [] as EditableDoc[],
@@ -148,6 +148,10 @@ export default defineComponent({
 
       target.config[key].value = value;
       target.dirty = true;
+      this.$emit("preview-change", {
+        path: target.path,
+        content: JSON.parse(JSON.stringify(target.config)) as CmsConfigDocument,
+      });
     },
     saveDoc(path: string) {
       const target = this.docs.find((doc) => doc.path === path);

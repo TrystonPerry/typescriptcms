@@ -1,15 +1,16 @@
 {
   "name": "@typescriptcms/library",
-  "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
-    "preview": "vite preview"
+  "main": "./src/plugin.js",
+  "exports": {
+    ".": "./src/plugin.js"
   },
-  "devDependencies": {
-    "typescript": "~5.9.3",
-    "vite": "^6.2.0"
+  "files": [
+    "src/plugin.js",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "node -e \"console.log('No build step for @typescriptcms/library')\""
   }
 }
