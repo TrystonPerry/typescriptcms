@@ -11,67 +11,67 @@
       <router-link class="btn btn-ghost" to="/">Back Home</router-link>
     </header>
 
-    <section class="top-grid">
-      <GitHubAuthCard
-        :session="session"
-        :loading="checkingSession"
-        @login="startLogin"
-        @logout="disconnect"
-      />
-
-      <RepoSelect
-        :repos="repos"
-        :selected-full-name="selectedRepo?.fullName || ''"
-        @select="onRepoSelect"
-      />
-    </section>
-
     <p v-if="errorMessage" class="status-error">{{ errorMessage }}</p>
 
-    <section class="editor-grid">
-      <FileTreeExplorer
-        :owner="selectedRepo?.owner || ''"
-        :repo="selectedRepo?.name || ''"
-        :selected-path="selectedFolder"
-        @folder-selected="onFolderSelect"
-      />
-
-      <CmsConfigEditor
-        :owner="selectedRepo?.owner || ''"
-        :repo="selectedRepo?.name || ''"
-        :files="cmsFiles"
-        :status-message="saveMessage"
-        @save-file="saveFile"
-        @preview-change="onPreviewChange"
-      />
-    </section>
-
-    <section class="panel preview-panel">
-      <div class="preview-head">
-        <div>
-          <p class="panel-title">Live Preview</p>
-          <p class="subtle" v-if="previewSessionId">
-            Session {{ previewSessionId }}
-          </p>
-        </div>
-        <p class="status-ok" v-if="previewStatus">{{ previewStatus }}</p>
-      </div>
-
-      <p v-if="!selectedRepo" class="subtle">
-        Select a repository to initialize preview mode.
-      </p>
-
-      <p v-else-if="!previewSessionId" class="subtle">
-        Loading preview session...
-      </p>
-
-      <div v-else class="preview-frame-wrap">
-        <iframe
-          class="preview-frame"
-          :src="previewFrameSrc"
-          title="Site preview"
+    <section class="workspace-grid">
+      <aside class="workspace-sidebar">
+        <GitHubAuthCard
+          :session="session"
+          :loading="checkingSession"
+          @login="startLogin"
+          @logout="disconnect"
         />
-      </div>
+
+        <RepoSelect
+          :repos="repos"
+          :selected-full-name="selectedRepo?.fullName || ''"
+          @select="onRepoSelect"
+        />
+
+        <FileTreeExplorer
+          :owner="selectedRepo?.owner || ''"
+          :repo="selectedRepo?.name || ''"
+          :selected-path="selectedFolder"
+          @folder-selected="onFolderSelect"
+        />
+
+        <CmsConfigEditor
+          :owner="selectedRepo?.owner || ''"
+          :repo="selectedRepo?.name || ''"
+          :files="cmsFiles"
+          :status-message="saveMessage"
+          @save-file="saveFile"
+          @preview-change="onPreviewChange"
+        />
+      </aside>
+
+      <section class="panel preview-panel">
+        <div class="preview-head">
+          <div>
+            <p class="panel-title">Live Preview</p>
+            <p class="subtle" v-if="previewSessionId">
+              Session {{ previewSessionId }}
+            </p>
+          </div>
+          <p class="status-ok" v-if="previewStatus">{{ previewStatus }}</p>
+        </div>
+
+        <p v-if="!selectedRepo" class="subtle">
+          Select a repository to initialize preview mode.
+        </p>
+
+        <p v-else-if="!previewSessionId" class="subtle">
+          Loading preview session...
+        </p>
+
+        <div v-else class="preview-frame-wrap">
+          <iframe
+            class="preview-frame"
+            :src="previewFrameSrc"
+            title="Site preview"
+          />
+        </div>
+      </section>
     </section>
   </main>
 </template>
@@ -396,20 +396,21 @@ export default defineComponent({
   margin: 0;
 }
 
-.top-grid {
+.workspace-grid {
   display: grid;
   gap: 1rem;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(360px, 460px) 1fr;
+  align-items: start;
 }
 
-.editor-grid {
+.workspace-sidebar {
   display: grid;
   gap: 1rem;
-  grid-template-columns: 340px 1fr;
 }
 
 .preview-panel {
   padding: 1rem;
+  min-height: 100%;
 }
 
 .preview-head {
@@ -424,26 +425,23 @@ export default defineComponent({
   border: 1px solid var(--border);
   border-radius: 12px;
   overflow: hidden;
+  background: #fff;
 }
 
 .preview-frame {
   width: 100%;
-  min-height: 520px;
+  min-height: 900px;
   border: 0;
   background: #fff;
 }
 
 @media (max-width: 1100px) {
-  .editor-grid {
+  .workspace-grid {
     grid-template-columns: 1fr;
   }
 }
 
 @media (max-width: 760px) {
-  .top-grid {
-    grid-template-columns: 1fr;
-  }
-
   .admin-header {
     flex-direction: column;
   }
