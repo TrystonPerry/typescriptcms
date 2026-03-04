@@ -24,7 +24,7 @@
     "maxLength": 50,
     "minLength": 2,
     "default": "John Doe",
-    "value": "Tryston Kuhl"
+    "value": "Tryston Perry"
   },
   "version": {
     "type": "string",
