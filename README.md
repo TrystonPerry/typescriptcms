@@ -1,19 +1,66 @@
-# TypeScript CMS
+# TypeScript CMS Workspace
 
-This is a very terrible, but working, example of building a CMS that leverages basic json schema files to generate TS safe cms content for your website / app.
+This repository now has two packages:
 
-## Goal
+- `packages/library`: core TypeScript CMS plugin and example usage
+- `packages/admin`: Vue-based admin UI for GitHub auth, repo selection, folder browsing, and CMS config editing
 
-The goal is to create an easy-to-use CMS that stores your content in your front-end, rather than a database. This way your content is available at build-time and it's easy to version control your content with git.
+## Quick start
 
-### Developer first
+1. Install dependencies:
 
-This project is aimed to be developer focused. You can edit the contnet and schema directly in your editor, and the content will immediately be reflected in your website / app.
+```bash
+npm install
+```
 
-### For non-developers too
+2. Run the admin UI:
 
-In the future, we will have an admin panel that will leverage GitHub and a slick UI for non-developers to edit the content by leveraging the schema files defined in your /cms folder.
+```bash
+npm run dev:admin
+```
 
-## How it works
+3. Run the library example app:
 
-This project uses a plugin to watch for changes to the json schema files in the `src/cms` directory and generate a TS file for each schema file. The TS file is then imported into your main.ts file and used to render your website / app. Because we export each type as a const, you get amazing toolips in VS code that shows the exact value of the variables. Meaning the content itself, is always at your fingertips.
+```bash
+npm run dev:library
+```
+
+## Admin OAuth setup
+
+Create an OAuth App in GitHub and set callback URL to:
+
+- `http://localhost:5174/auth/github/callback` when using `conductor:run`
+- `http://localhost:8787/auth/github/callback` when using `npm run dev:admin`
+
+Then copy `packages/admin/.env.example` to `packages/admin/.env` and fill in the credentials.
+
+Important: this project currently expects a **GitHub OAuth App** token flow.
+If you configure a GitHub App instead, you must grant `Contents: Read and write`
+permissions and reinstall/re-authorize, or saves will fail with
+`Resource not accessible by integration`.
+
+## Conductor Worktree Setup
+
+This repo now includes a `conductor.json` file plus two worktree scripts:
+
+- `scripts/conductor-setup.zsh`: dependency install + admin env bootstrap
+- `scripts/conductor-run.zsh`: starts admin API, admin UI, and library UI together
+
+Run locally the same way Conductor does:
+
+```bash
+npm run conductor:setup
+npm run conductor:run
+```
+
+The run script is Conductor-aware and uses `CONDUCTOR_PORT` as the base:
+
+- admin UI: `${CONDUCTOR_PORT}/admin`
+- admin API: `${CONDUCTOR_PORT + 1}`
+- library UI: `${CONDUCTOR_PORT + 2}`
+
+If you run outside Conductor, default ports are:
+
+- admin UI: `http://localhost:5173/admin`
+- admin API: `http://localhost:5174`
+- library UI: `http://localhost:5175`

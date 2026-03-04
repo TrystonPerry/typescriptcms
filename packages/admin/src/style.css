@@ -1,0 +1,125 @@
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap");
+
+:root {
+  --bg-start: #f5f2eb;
+  --bg-end: #dfe9ff;
+  --panel: #ffffff;
+  --panel-muted: #f3f1ed;
+  --text: #1f2431;
+  --subtle: #5d6579;
+  --border: #d7dce8;
+  --accent: #2255d9;
+  --accent-soft: #e4ecff;
+  --danger: #b63e26;
+  --ok: #236a37;
+  --shadow: 0 22px 70px rgba(31, 36, 49, 0.12);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  font-family: "Space Grotesk", "Helvetica Neue", sans-serif;
+  color: var(--text);
+  background:
+    radial-gradient(circle at 15% 15%, rgba(255, 215, 174, 0.45) 0, transparent 35%),
+    radial-gradient(circle at 84% 18%, rgba(193, 221, 255, 0.7) 0, transparent 30%),
+    linear-gradient(160deg, var(--bg-start), var(--bg-end));
+}
+
+.page-shell {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 2rem 1rem 3rem;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+}
+
+.panel-title {
+  margin: 0;
+  font-size: 1rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--subtle);
+}
+
+.btn {
+  border: 1px solid transparent;
+  border-radius: 10px;
+  padding: 0.65rem 1rem;
+  font-family: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.15s ease, background-color 0.2s ease;
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+}
+
+.btn-ghost {
+  background: var(--panel-muted);
+  color: var(--text);
+  border-color: var(--border);
+}
+
+.field-label {
+  font-size: 0.85rem;
+  color: var(--subtle);
+  margin-bottom: 0.35rem;
+}
+
+.field-input,
+.field-select,
+.field-textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.6rem 0.75rem;
+  font: inherit;
+  color: var(--text);
+  background: #fff;
+}
+
+.field-input:focus,
+.field-select:focus,
+.field-textarea:focus {
+  outline: 2px solid var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.monospace {
+  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.status-error {
+  color: var(--danger);
+}
+
+.status-ok {
+  color: var(--ok);
+}
+
+@media (max-width: 900px) {
+  .page-shell {
+    padding: 1rem;
+  }
+}

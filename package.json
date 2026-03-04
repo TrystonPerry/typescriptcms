@@ -1,16 +1,19 @@
 {
-  "name": "typescriptcms",
+  "name": "typescriptcms-workspace",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
   "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
-    "preview": "vite preview"
-  },
-  "devDependencies": {
-    "fs": "^0.0.1-security",
-    "typescript": "~5.9.3",
-    "vite": "^7.2.2"
+    "dev": "npm run dev:admin",
+    "dev:admin": "npm run dev --workspace @typescriptcms/admin",
+    "dev:library": "npm run dev --workspace @typescriptcms/library",
+    "conductor:setup": "./scripts/conductor-setup.zsh",
+    "conductor:run": "./scripts/conductor-run.zsh",
+    "build": "npm run build --workspace @typescriptcms/library && npm run build --workspace @typescriptcms/admin",
+    "build:admin": "npm run build --workspace @typescriptcms/admin",
+    "build:library": "npm run build --workspace @typescriptcms/library"
   }
 }
