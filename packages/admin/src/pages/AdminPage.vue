@@ -13,20 +13,22 @@
 
     <p v-if="errorMessage" class="status-error">{{ errorMessage }}</p>
 
-    <section class="workspace-grid">
-      <aside class="workspace-sidebar">
-        <GitHubAuthCard
-          :session="session"
-          :loading="checkingSession"
-          @login="startLogin"
-          @logout="disconnect"
-        />
+    <section class="app-row">
+      <aside class="editor-column">
+        <div class="editor-controls">
+          <GitHubAuthCard
+            :session="session"
+            :loading="checkingSession"
+            @login="startLogin"
+            @logout="disconnect"
+          />
 
-        <RepoSelect
-          :repos="repos"
-          :selected-full-name="selectedRepo?.fullName || ''"
-          @select="onRepoSelect"
-        />
+          <RepoSelect
+            :repos="repos"
+            :selected-full-name="selectedRepo?.fullName || ''"
+            @select="onRepoSelect"
+          />
+        </div>
 
         <FileTreeExplorer
           :owner="selectedRepo?.owner || ''"
@@ -56,21 +58,15 @@
           <p class="status-ok" v-if="previewStatus">{{ previewStatus }}</p>
         </div>
 
-        <p v-if="!selectedRepo" class="subtle">
-          Select a repository to initialize preview mode.
-        </p>
-
-        <p v-else-if="!previewSessionId" class="subtle">
-          Loading preview session...
-        </p>
-
-        <div v-else class="preview-frame-wrap">
+        <div v-if="previewSessionId" class="preview-frame-wrap">
           <iframe
             class="preview-frame"
             :src="previewFrameSrc"
             title="Site preview"
           />
         </div>
+
+        <p v-else class="no-preview">NO PREVIEW</p>
       </section>
     </section>
   </main>
@@ -367,6 +363,8 @@ export default defineComponent({
 .admin-page {
   display: grid;
   gap: 1rem;
+  max-width: none;
+  width: 100%;
 }
 
 .admin-header {
@@ -396,21 +394,20 @@ export default defineComponent({
   margin: 0;
 }
 
-.workspace-grid {
+.app-row {
   display: grid;
-  gap: 1rem;
-  grid-template-columns: minmax(360px, 460px) 1fr;
+  grid-template-columns: minmax(360px, 460px) minmax(0, 1fr);
   align-items: start;
+  gap: 1rem;
 }
 
-.workspace-sidebar {
+.editor-column {
   display: grid;
   gap: 1rem;
 }
 
 .preview-panel {
   padding: 1rem;
-  min-height: 100%;
 }
 
 .preview-head {
@@ -435,8 +432,26 @@ export default defineComponent({
   background: #fff;
 }
 
-@media (max-width: 1100px) {
-  .workspace-grid {
+.no-preview {
+  margin: 0;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  min-height: 900px;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--subtle);
+}
+
+.editor-controls {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (max-width: 1200px) {
+  .editor-controls {
     grid-template-columns: 1fr;
   }
 }
