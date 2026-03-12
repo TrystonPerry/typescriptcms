@@ -6,7 +6,7 @@
     "maxLength": 60,
     "minLength": 1,
     "default": "TypeScript CMS",
-    "value": "TypeScript CMS!!!"
+    "value": "TypeScript CMS"
   },
   "description": {
     "type": "string",
@@ -24,7 +24,7 @@
     "maxLength": 50,
     "minLength": 2,
     "default": "John Doe",
-    "value": "Tryston Perry"
+    "value": "John Smith"
   },
   "version": {
     "type": "string",
