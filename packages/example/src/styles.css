@@ -1,0 +1,60 @@
+:root {
+  color: #f0f3f8;
+  background: radial-gradient(circle at top, #2b3548 0%, #11161f 65%);
+  font-family: "Space Grotesk", "Segoe UI", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+.canvas {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  padding: 1.5rem;
+}
+
+.card {
+  width: min(100%, 480px);
+  border-radius: 18px;
+  padding: 2rem;
+  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.35);
+}
+
+.card h1 {
+  margin: 0 0 0.5rem;
+  font-size: clamp(2rem, 4vw, 2.8rem);
+}
+
+.card p {
+  color: #d6e4ff;
+}
+
+.card dl {
+  margin: 1.25rem 0 0;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.card dl div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  padding-top: 0.6rem;
+}
+
+.card dt {
+  color: #b9cbe6;
+}
+
+.card dd {
+  margin: 0;
+  font-weight: 700;
+}

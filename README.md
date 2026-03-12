@@ -1,19 +1,67 @@
-# TypeScript CMS
+# TypeScript CMS Workspace
 
-This is a very terrible, but working, example of building a CMS that leverages basic json schema files to generate TS safe cms content for your website / app.
+This repository contains three packages:
 
-## Goal
+- `packages/library`: plugin-only package that generates TypeScript files from CMS `*.config.json` specs
+- `packages/admin`: Vue admin UI for GitHub auth, repo browsing, CMS editing, and preview session APIs
+- `packages/example`: React example app that consumes generated CMS data and demonstrates preview injection
 
-The goal is to create an easy-to-use CMS that stores your content in your front-end, rather than a database. This way your content is available at build-time and it's easy to version control your content with git.
+## Quick start
 
-### Developer first
+1. Install dependencies:
 
-This project is aimed to be developer focused. You can edit the contnet and schema directly in your editor, and the content will immediately be reflected in your website / app.
+```bash
+npm install
+```
 
-### For non-developers too
+2. Run admin UI:
 
-In the future, we will have an admin panel that will leverage GitHub and a slick UI for non-developers to edit the content by leveraging the schema files defined in your /cms folder.
+```bash
+npm run dev:admin
+```
 
-## How it works
+3. Run example app:
 
-This project uses a plugin to watch for changes to the json schema files in the `src/cms` directory and generate a TS file for each schema file. The TS file is then imported into your main.ts file and used to render your website / app. Because we export each type as a const, you get amazing toolips in VS code that shows the exact value of the variables. Meaning the content itself, is always at your fingertips.
+```bash
+npm run dev:example
+```
+
+## Admin OAuth setup
+
+Create a GitHub OAuth App with callback URL:
+
+- `http://localhost:5174/auth/github/callback` when using `conductor:run`
+- `http://localhost:8787/auth/github/callback` when using `npm run dev:admin`
+
+Then copy `packages/admin/.env.example` to `packages/admin/.env` and set your credentials.
+
+## Conductor setup
+
+This repo includes `conductor.json` plus:
+
+- `scripts/conductor-setup.zsh`
+- `scripts/conductor-run.zsh`
+
+Run locally with:
+
+```bash
+npm run conductor:setup
+npm run conductor:run
+```
+
+With `CONDUCTOR_PORT` as base:
+
+- admin UI: `${CONDUCTOR_PORT}/admin`
+- admin API: `${CONDUCTOR_PORT + 1}`
+- example app: `${CONDUCTOR_PORT + 2}`
+
+Outside Conductor defaults:
+
+- admin UI: `http://localhost:5173/admin`
+- admin API: `http://localhost:5174`
+- example app: `http://localhost:5175`
+
+## Preview injection mode
+
+`/admin` creates an ephemeral preview session and streams unsaved `.config.json` drafts to the preview API.
+The example app loads drafts through `?previewSession=<sessionId>` and overlays draft `value` fields at runtime.
