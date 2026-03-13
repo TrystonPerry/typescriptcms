@@ -5,11 +5,15 @@
   "main": "./src/plugin.js",
   "exports": {
     ".": "./src/plugin.js",
-    "./preview": "./src/preview.js"
+    "./next": "./src/next.js",
+    "./preview": "./src/preview.js",
+    "./generator": "./src/generator.js"
   },
   "files": [
     "src/plugin.js",
+    "src/next.js",
     "src/preview.js",
+    "src/generator.js",
     "README.md"
   ],
   "scripts": {

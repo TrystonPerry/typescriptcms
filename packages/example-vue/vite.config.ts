@@ -7,7 +7,10 @@ const adminTarget =
   `http://localhost:${process.env.ADMIN_PORT ?? "5500"}`;
 
 export default defineConfig({
-  plugins: [vue(), typescriptcmsPlugin({ cmsDir: "src/cms", framework: "vue" })],
+  plugins: [
+    vue(),
+    typescriptcmsPlugin({ cmsDir: "src/cms", framework: "vue" }),
+  ],
   server: {
     proxy: {
       "/admin": {
