@@ -1,29 +1,7 @@
-import { useEffect, useState } from "react";
-
-import homeContent from "./cms/home";
-import { applyPreviewOverlay } from "./preview";
-
-type HomeContent = typeof homeContent;
+import { useCmsContent } from "./cms";
 
 export default function App() {
-  const [home, setHome] = useState<HomeContent>(homeContent);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    void applyPreviewOverlay({
-      base: homeContent,
-      configPath: "src/cms/home.config.json",
-    }).then((next) => {
-      if (!cancelled) {
-        setHome(next);
-      }
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const home = useCmsContent("home");
 
   return (
     <main className="canvas">

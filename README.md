@@ -57,9 +57,9 @@ With `CONDUCTOR_PORT` as base:
 
 Outside Conductor defaults:
 
-- admin UI: `http://localhost:5173/admin`
+- admin UI: `http://localhost:5500/admin`
 - admin API: `http://localhost:5174`
-- example app: `http://localhost:5175`
+- example app: `http://localhost:5173`
 
 ## Preview injection mode
 

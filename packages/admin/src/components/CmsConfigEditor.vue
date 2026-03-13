@@ -3,7 +3,8 @@
     <div class="editor-head">
       <div>
         <p class="panel-title">CMS Config Editor</p>
-        <p class="subtle" v-if="owner && repo">{{ owner }}/{{ repo }}</p>
+        <p class="subtle" v-if="localMode">Local filesystem</p>
+      <p class="subtle" v-else-if="owner && repo">{{ owner }}/{{ repo }}</p>
       </div>
       <p class="status-ok" v-if="statusMessage">{{ statusMessage }}</p>
     </div>
@@ -95,6 +96,10 @@ export default defineComponent({
       type: String,
       default: "",
     },
+    localMode: {
+      type: Boolean,
+      default: false,
+    },
     statusMessage: {
       type: String,
       default: "",
@@ -156,7 +161,11 @@ export default defineComponent({
     saveDoc(path: string) {
       const target = this.docs.find((doc) => doc.path === path);
 
-      if (!target?.config || !this.owner || !this.repo || target.saving) {
+      if (!target?.config || target.saving) {
+        return;
+      }
+
+      if (!this.localMode && (!this.owner || !this.repo)) {
         return;
       }
 

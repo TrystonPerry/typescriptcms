@@ -1,5 +1,5 @@
 import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
+import vue from "@vitejs/plugin-vue";
 import typescriptcmsPlugin from "@typescriptcms/library";
 
 const adminTarget =
@@ -7,7 +7,7 @@ const adminTarget =
   `http://localhost:${process.env.ADMIN_PORT ?? "5500"}`;
 
 export default defineConfig({
-  plugins: [react(), typescriptcmsPlugin({ cmsDir: "src/cms" })],
+  plugins: [vue(), typescriptcmsPlugin({ cmsDir: "src/cms", framework: "vue" })],
   server: {
     proxy: {
       "/admin": {

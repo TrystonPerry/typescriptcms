@@ -2,8 +2,15 @@ import "dotenv/config";
 
 import cookieParser from "cookie-parser";
 import cors from "cors";
-import express, { type Request, type Response as ExpressResponse, type NextFunction } from "express";
+import express, {
+  type Request,
+  type Response as ExpressResponse,
+  type NextFunction,
+} from "express";
 import { randomUUID } from "node:crypto";
+import fs from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const GITHUB_API_BASE = "https://api.github.com";
 const GITHUB_OAUTH_TOKEN_URL = "https://github.com/login/oauth/access_token";
@@ -12,9 +19,12 @@ const GITHUB_AUTHORIZE_URL = "https://github.com/login/oauth/authorize";
 const githubClientId = process.env.GITHUB_CLIENT_ID;
 const githubClientSecret = process.env.GITHUB_CLIENT_SECRET;
 const clientUrl = process.env.ADMIN_CLIENT_URL ?? "http://localhost:5173";
-const serverUrl = process.env.ADMIN_SERVER_URL ?? "http://localhost:8787";
+const serverUrl = process.env.ADMIN_SERVER_URL ?? "http://localhost:5500";
 const sessionSecret = process.env.SESSION_SECRET;
-const port = Number(process.env.ADMIN_SERVER_PORT ?? 8787);
+const port = Number(process.env.ADMIN_SERVER_PORT ?? 5501);
+const cmsPath = process.env.TYPESCRIPTCMS_CMS_PATH ?? "";
+const localMode = cmsPath.length > 0;
+const resolvedCmsPath = cmsPath ? path.resolve(cmsPath) : "";
 
 if (!sessionSecret) {
   console.warn("SESSION_SECRET is not set. For local dev only.");
@@ -39,7 +49,7 @@ app.use(
   cors({
     origin: clientUrl,
     credentials: true,
-  }),
+  })
 );
 app.use(express.json({ limit: "1mb" }));
 app.use(cookieParser(sessionSecret));
@@ -102,7 +112,7 @@ async function parseBody(response: globalThis.Response): Promise<unknown> {
 async function githubFetch(
   endpoint: string,
   token: string,
-  init: RequestInit = {},
+  init: RequestInit = {}
 ): Promise<unknown> {
   const response = await fetch(`${GITHUB_API_BASE}${endpoint}`, {
     ...init,
@@ -121,8 +131,8 @@ async function githubFetch(
       typeof parsed === "string"
         ? parsed
         : typeof parsed === "object" && parsed !== null && "message" in parsed
-          ? String((parsed as { message: unknown }).message)
-          : "GitHub API request failed";
+        ? String((parsed as { message: unknown }).message)
+        : "GitHub API request failed";
 
     const error = new Error(message) as Error & { status?: number };
     error.status = response.status;
@@ -136,7 +146,16 @@ function getAccessToken(req: Request): string | undefined {
   return req.signedCookies.gh_access_token || req.cookies.gh_access_token;
 }
 
-function requireGithubAuth(req: Request, res: ExpressResponse, next: NextFunction): void {
+function requireAuth(
+  req: Request,
+  res: ExpressResponse,
+  next: NextFunction
+): void {
+  if (localMode) {
+    next();
+    return;
+  }
+
   if (!getAccessToken(req)) {
     res.status(401).json({ message: "Not authenticated with GitHub." });
     return;
@@ -165,7 +184,7 @@ function withGithubErrorHint(message: string): string {
   return message;
 }
 
-app.get("/auth/github", (req, res) => {
+app.get("/admin/auth/github", (req, res) => {
   if (!githubClientId || !githubClientSecret) {
     res.status(500).send("GitHub OAuth environment variables are missing.");
     return;
@@ -181,7 +200,7 @@ app.get("/auth/github", (req, res) => {
 
   const searchParams = new URLSearchParams({
     client_id: githubClientId,
-    redirect_uri: `${serverUrl}/auth/github/callback`,
+    redirect_uri: `${serverUrl}/admin/auth/github/callback`,
     scope: "repo read:user",
     state,
     allow_signup: "true",
@@ -190,9 +209,10 @@ app.get("/auth/github", (req, res) => {
   res.redirect(`${GITHUB_AUTHORIZE_URL}?${searchParams.toString()}`);
 });
 
-app.get("/auth/github/callback", async (req, res) => {
+app.get("/admin/auth/github/callback", async (req, res) => {
   const code = typeof req.query.code === "string" ? req.query.code : undefined;
-  const state = typeof req.query.state === "string" ? req.query.state : undefined;
+  const state =
+    typeof req.query.state === "string" ? req.query.state : undefined;
 
   if (!code || !state) {
     res.status(400).send("GitHub callback is missing required params.");
@@ -220,7 +240,7 @@ app.get("/auth/github/callback", async (req, res) => {
       client_id: githubClientId,
       client_secret: githubClientSecret,
       code,
-      redirect_uri: `${serverUrl}/auth/github/callback`,
+      redirect_uri: `${serverUrl}/admin/auth/github/callback`,
     }),
   });
 
@@ -231,7 +251,8 @@ app.get("/auth/github/callback", async (req, res) => {
   };
 
   if (!tokenResponse.ok || !tokenJson.access_token) {
-    const description = tokenJson.error_description ?? tokenJson.error ?? "OAuth exchange failed";
+    const description =
+      tokenJson.error_description ?? tokenJson.error ?? "OAuth exchange failed";
     res.status(400).send(description);
     return;
   }
@@ -245,15 +266,20 @@ app.get("/auth/github/callback", async (req, res) => {
   });
   res.clearCookie("gh_oauth_state");
 
-  res.redirect(`${clientUrl}/admin`);
+  res.redirect(`${clientUrl}/admin/editor`);
 });
 
-app.post("/auth/logout", (_req, res) => {
+app.post("/admin/auth/logout", (_req, res) => {
   clearAuthCookies(res);
   res.status(204).send();
 });
 
-app.get("/api/session", async (req, res) => {
+app.get("/admin/api/session", async (req, res) => {
+  if (localMode) {
+    res.json({ authenticated: true, local: true });
+    return;
+  }
+
   const token = getAccessToken(req);
 
   if (!token) {
@@ -284,11 +310,14 @@ app.get("/api/session", async (req, res) => {
   }
 });
 
-app.get("/api/repos", requireGithubAuth, async (req, res) => {
+app.get("/admin/api/repos", requireAuth, async (req, res) => {
   const token = getAccessToken(req);
 
   try {
-    const repos = (await githubFetch("/user/repos?per_page=100&sort=updated&type=owner", token!)) as Array<{
+    const repos = (await githubFetch(
+      "/user/repos?per_page=100&sort=updated&type=owner",
+      token!
+    )) as Array<{
       id: number;
       name: string;
       full_name: string;
@@ -316,10 +345,12 @@ app.get("/api/repos", requireGithubAuth, async (req, res) => {
   }
 });
 
-app.get("/api/tree", requireGithubAuth, async (req, res) => {
-  const owner = typeof req.query.owner === "string" ? req.query.owner : undefined;
+app.get("/admin/api/tree", requireAuth, async (req, res) => {
+  const owner =
+    typeof req.query.owner === "string" ? req.query.owner : undefined;
   const repo = typeof req.query.repo === "string" ? req.query.repo : undefined;
-  const requestedPath = typeof req.query.path === "string" ? req.query.path : "";
+  const requestedPath =
+    typeof req.query.path === "string" ? req.query.path : "";
 
   if (!owner || !repo) {
     res.status(400).json({ message: "owner and repo are required." });
@@ -331,8 +362,12 @@ app.get("/api/tree", requireGithubAuth, async (req, res) => {
 
   try {
     const endpoint = encodedPath
-      ? `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/contents/${encodedPath}`
-      : `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/contents`;
+      ? `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(
+          repo
+        )}/contents/${encodedPath}`
+      : `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(
+          repo
+        )}/contents`;
 
     const response = await githubFetch(endpoint, token);
 
@@ -377,10 +412,61 @@ app.get("/api/tree", requireGithubAuth, async (req, res) => {
   }
 });
 
-app.get("/api/cms-configs", requireGithubAuth, async (req, res) => {
-  const owner = typeof req.query.owner === "string" ? req.query.owner : undefined;
+async function findLocalConfigFiles(dir: string, base = ""): Promise<string[]> {
+  const entries = await fs.readdir(dir, { withFileTypes: true });
+  const results: string[] = [];
+
+  for (const entry of entries) {
+    const relative = base ? `${base}/${entry.name}` : entry.name;
+
+    if (entry.isDirectory()) {
+      results.push(...(await findLocalConfigFiles(path.join(dir, entry.name), relative)));
+    } else if (entry.name.endsWith(".config.json")) {
+      results.push(relative);
+    }
+  }
+
+  return results;
+}
+
+app.get("/admin/api/cms-configs", async (req, res) => {
+  if (localMode) {
+    try {
+      const configPaths = await findLocalConfigFiles(resolvedCmsPath);
+
+      const files = await Promise.all(
+        configPaths.map(async (relativePath) => {
+          const fullPath = path.join(resolvedCmsPath, relativePath);
+          const raw = await fs.readFile(fullPath, "utf-8");
+
+          try {
+            return { path: relativePath, config: JSON.parse(raw) };
+          } catch (error) {
+            return { path: relativePath, config: null, parseError: (error as Error).message };
+          }
+        }),
+      );
+
+      res.json({ files });
+    } catch (error) {
+      res.status(500).json({ message: (error as Error).message });
+    }
+
+    return;
+  }
+
+  if (!getAccessToken(req)) {
+    res.status(401).json({ message: "Not authenticated with GitHub." });
+    return;
+  }
+
+  const owner =
+    typeof req.query.owner === "string" ? req.query.owner : undefined;
   const repo = typeof req.query.repo === "string" ? req.query.repo : undefined;
-  const folder = typeof req.query.folder === "string" ? req.query.folder.replace(/^\/+|\/+$/g, "") : "";
+  const folder =
+    typeof req.query.folder === "string"
+      ? req.query.folder.replace(/^\/+|\/+$/g, "")
+      : "";
 
   if (!owner || !repo) {
     res.status(400).json({ message: "owner and repo are required." });
@@ -392,14 +478,16 @@ app.get("/api/cms-configs", requireGithubAuth, async (req, res) => {
   try {
     const repoDetails = (await githubFetch(
       `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`,
-      token,
+      token
     )) as { default_branch: string };
 
     const treeResponse = (await githubFetch(
-      `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/git/trees/${encodeURIComponent(
-        repoDetails.default_branch,
+      `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(
+        repo
+      )}/git/trees/${encodeURIComponent(
+        repoDetails.default_branch
       )}?recursive=1`,
-      token,
+      token
     )) as {
       tree: Array<{ path: string; type: string; sha: string }>;
     };
@@ -421,15 +509,17 @@ app.get("/api/cms-configs", requireGithubAuth, async (req, res) => {
     const files = await Promise.all(
       matches.map(async (entry) => {
         const blob = (await githubFetch(
-          `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/git/blobs/${encodeURIComponent(
-            entry.sha,
-          )}`,
-          token,
+          `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(
+            repo
+          )}/git/blobs/${encodeURIComponent(entry.sha)}`,
+          token
         )) as { content: string; encoding: string };
 
         const raw =
           blob.encoding === "base64"
-            ? Buffer.from(blob.content.replace(/\n/g, ""), "base64").toString("utf-8")
+            ? Buffer.from(blob.content.replace(/\n/g, ""), "base64").toString(
+                "utf-8"
+              )
             : blob.content;
 
         try {
@@ -444,7 +534,7 @@ app.get("/api/cms-configs", requireGithubAuth, async (req, res) => {
             parseError: (error as Error).message,
           };
         }
-      }),
+      })
     );
 
     res.json({ files });
@@ -455,9 +545,9 @@ app.get("/api/cms-configs", requireGithubAuth, async (req, res) => {
   }
 });
 
-app.post("/api/preview/sessions", requireGithubAuth, (req, res) => {
-  const owner = typeof req.body.owner === "string" ? req.body.owner : undefined;
-  const repo = typeof req.body.repo === "string" ? req.body.repo : undefined;
+app.post("/admin/api/preview/sessions", requireAuth, (req, res) => {
+  const owner = typeof req.body.owner === "string" ? req.body.owner : (localMode ? "local" : undefined);
+  const repo = typeof req.body.repo === "string" ? req.body.repo : (localMode ? "local" : undefined);
 
   if (!owner || !repo) {
     res.status(400).json({ message: "owner and repo are required." });
@@ -488,9 +578,84 @@ app.post("/api/preview/sessions", requireGithubAuth, (req, res) => {
   });
 });
 
-app.put("/api/preview/sessions/:sessionId/file", requireGithubAuth, (req, res) => {
-  const sessionId = req.params.sessionId;
-  const filePath = typeof req.body.path === "string" ? req.body.path : undefined;
+app.put(
+  "/admin/api/preview/sessions/:sessionId/file",
+  requireAuth,
+  (req, res) => {
+    const sessionId = req.params.sessionId;
+    const filePath =
+      typeof req.body.path === "string" ? req.body.path : undefined;
+    const content = req.body.content;
+
+    if (!filePath || typeof content !== "object" || content === null) {
+      res.status(400).json({ message: "path and content are required." });
+      return;
+    }
+
+    const session = getValidPreviewSession(sessionId);
+
+    if (!session) {
+      res
+        .status(404)
+        .json({ message: "Preview session not found or expired." });
+      return;
+    }
+
+    session.files.set(filePath, content as Record<string, unknown>);
+    touchPreviewSession(session);
+
+    res.json({
+      sessionId: session.id,
+      path: filePath,
+      updatedAt: new Date(session.updatedAt).toISOString(),
+      expiresAt: new Date(session.expiresAt).toISOString(),
+    });
+  }
+);
+
+app.get(
+  "/admin/api/preview/sessions/:sessionId/snapshot",
+  requireAuth,
+  (req, res) => {
+    const sessionId = req.params.sessionId;
+    const session = getValidPreviewSession(sessionId);
+
+    if (!session) {
+      res
+        .status(404)
+        .json({ message: "Preview session not found or expired." });
+      return;
+    }
+
+    touchPreviewSession(session);
+
+    res.json({
+      sessionId: session.id,
+      owner: session.owner,
+      repo: session.repo,
+      createdAt: new Date(session.createdAt).toISOString(),
+      updatedAt: new Date(session.updatedAt).toISOString(),
+      expiresAt: new Date(session.expiresAt).toISOString(),
+      files: Array.from(session.files.entries()).map(([path, content]) => ({
+        path,
+        content,
+      })),
+    });
+  }
+);
+
+app.delete(
+  "/admin/api/preview/sessions/:sessionId",
+  requireAuth,
+  (req, res) => {
+    previewSessions.delete(req.params.sessionId);
+    res.status(204).send();
+  }
+);
+
+app.put("/admin/api/cms-config-file", async (req, res) => {
+  const filePath =
+    typeof req.body.path === "string" ? req.body.path : undefined;
   const content = req.body.content;
 
   if (!filePath || typeof content !== "object" || content === null) {
@@ -498,66 +663,39 @@ app.put("/api/preview/sessions/:sessionId/file", requireGithubAuth, (req, res) =
     return;
   }
 
-  const session = getValidPreviewSession(sessionId);
+  if (localMode) {
+    try {
+      const fullPath = path.join(resolvedCmsPath, filePath);
+      const resolved = path.resolve(fullPath);
 
-  if (!session) {
-    res.status(404).json({ message: "Preview session not found or expired." });
+      if (!resolved.startsWith(resolvedCmsPath)) {
+        res.status(400).json({ message: "Invalid file path." });
+        return;
+      }
+
+      await fs.writeFile(resolved, JSON.stringify(content, null, 2) + "\n", "utf-8");
+      res.json({ result: { path: filePath } });
+    } catch (error) {
+      res.status(500).json({ message: (error as Error).message });
+    }
+
     return;
   }
 
-  session.files.set(filePath, content as Record<string, unknown>);
-  touchPreviewSession(session);
-
-  res.json({
-    sessionId: session.id,
-    path: filePath,
-    updatedAt: new Date(session.updatedAt).toISOString(),
-    expiresAt: new Date(session.expiresAt).toISOString(),
-  });
-});
-
-app.get("/api/preview/sessions/:sessionId/snapshot", requireGithubAuth, (req, res) => {
-  const sessionId = req.params.sessionId;
-  const session = getValidPreviewSession(sessionId);
-
-  if (!session) {
-    res.status(404).json({ message: "Preview session not found or expired." });
+  if (!getAccessToken(req)) {
+    res.status(401).json({ message: "Not authenticated with GitHub." });
     return;
   }
 
-  touchPreviewSession(session);
-
-  res.json({
-    sessionId: session.id,
-    owner: session.owner,
-    repo: session.repo,
-    createdAt: new Date(session.createdAt).toISOString(),
-    updatedAt: new Date(session.updatedAt).toISOString(),
-    expiresAt: new Date(session.expiresAt).toISOString(),
-    files: Array.from(session.files.entries()).map(([path, content]) => ({
-      path,
-      content,
-    })),
-  });
-});
-
-app.delete("/api/preview/sessions/:sessionId", requireGithubAuth, (req, res) => {
-  previewSessions.delete(req.params.sessionId);
-  res.status(204).send();
-});
-
-app.put("/api/cms-config-file", requireGithubAuth, async (req, res) => {
   const owner = typeof req.body.owner === "string" ? req.body.owner : undefined;
   const repo = typeof req.body.repo === "string" ? req.body.repo : undefined;
-  const filePath = typeof req.body.path === "string" ? req.body.path : undefined;
-  const content = req.body.content;
   const message =
     typeof req.body.message === "string" && req.body.message.trim().length > 0
       ? req.body.message.trim()
       : "Update CMS config values";
 
-  if (!owner || !repo || !filePath || typeof content !== "object" || content === null) {
-    res.status(400).json({ message: "owner, repo, path, and content are required." });
+  if (!owner || !repo) {
+    res.status(400).json({ message: "owner and repo are required." });
     return;
   }
 
@@ -567,12 +705,16 @@ app.put("/api/cms-config-file", requireGithubAuth, async (req, res) => {
     const encodedPath = pathEncode(filePath);
 
     const existing = (await githubFetch(
-      `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/contents/${encodedPath}`,
-      token,
+      `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(
+        repo
+      )}/contents/${encodedPath}`,
+      token
     )) as { sha: string };
 
     const putResponse = await githubFetch(
-      `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/contents/${encodedPath}`,
+      `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(
+        repo
+      )}/contents/${encodedPath}`,
       token,
       {
         method: "PUT",
@@ -581,10 +723,13 @@ app.put("/api/cms-config-file", requireGithubAuth, async (req, res) => {
         },
         body: JSON.stringify({
           message,
-          content: Buffer.from(JSON.stringify(content, null, 2), "utf-8").toString("base64"),
+          content: Buffer.from(
+            JSON.stringify(content, null, 2),
+            "utf-8"
+          ).toString("base64"),
           sha: existing.sha,
         }),
-      },
+      }
     );
 
     res.json({ result: putResponse });
@@ -593,6 +738,15 @@ app.put("/api/cms-config-file", requireGithubAuth, async (req, res) => {
       message: withGithubErrorHint((error as Error).message),
     });
   }
+});
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const clientDistDir = path.resolve(__dirname, "..", "dist");
+
+app.use("/admin", express.static(clientDistDir));
+
+app.get("/admin/*", (_req, res) => {
+  res.sendFile(path.join(clientDistDir, "index.html"));
 });
 
 app.listen(port, () => {

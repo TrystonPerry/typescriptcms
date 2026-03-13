@@ -4,7 +4,7 @@ import HomePage from "../pages/HomePage.vue";
 import AdminPage from "../pages/AdminPage.vue";
 
 export default createRouter({
-  history: createWebHistory(),
+  history: createWebHistory("/admin/"),
   routes: [
     {
       path: "/",
@@ -12,7 +12,7 @@ export default createRouter({
       component: HomePage,
     },
     {
-      path: "/admin",
+      path: "/editor",
       name: "admin",
       component: AdminPage,
     },

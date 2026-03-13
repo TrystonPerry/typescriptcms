@@ -3,9 +3,13 @@
     <header class="admin-header panel">
       <div>
         <p class="eyebrow">Admin</p>
-        <h1>GitHub CMS Editor</h1>
-        <p class="subtle">
-          Login, pick a repo, choose the CMS folder, and edit `.config.json` definitions.
+        <h1>{{ localMode ? "CMS Editor" : "GitHub CMS Editor" }}</h1>
+        <p class="subtle" v-if="localMode">
+          Editing `.config.json` definitions from the local filesystem.
+        </p>
+        <p class="subtle" v-else>
+          Login, pick a repo, choose the CMS folder, and edit `.config.json`
+          definitions.
         </p>
       </div>
       <router-link class="btn btn-ghost" to="/">Back Home</router-link>
@@ -15,31 +19,34 @@
 
     <section class="app-row">
       <aside class="editor-column">
-        <div class="editor-controls">
-          <GitHubAuthCard
-            :session="session"
-            :loading="checkingSession"
-            @login="startLogin"
-            @logout="disconnect"
-          />
+        <template v-if="!localMode">
+          <div class="editor-controls">
+            <GitHubAuthCard
+              :session="session"
+              :loading="checkingSession"
+              @login="startLogin"
+              @logout="disconnect"
+            />
 
-          <RepoSelect
-            :repos="repos"
-            :selected-full-name="selectedRepo?.fullName || ''"
-            @select="onRepoSelect"
-          />
-        </div>
+            <RepoSelect
+              :repos="repos"
+              :selected-full-name="selectedRepo?.fullName || ''"
+              @select="onRepoSelect"
+            />
+          </div>
 
-        <FileTreeExplorer
-          :owner="selectedRepo?.owner || ''"
-          :repo="selectedRepo?.name || ''"
-          :selected-path="selectedFolder"
-          @folder-selected="onFolderSelect"
-        />
+          <FileTreeExplorer
+            :owner="selectedRepo?.owner || ''"
+            :repo="selectedRepo?.name || ''"
+            :selected-path="selectedFolder"
+            @folder-selected="onFolderSelect"
+          />
+        </template>
 
         <CmsConfigEditor
           :owner="selectedRepo?.owner || ''"
           :repo="selectedRepo?.name || ''"
+          :local-mode="localMode"
           :files="cmsFiles"
           :status-message="saveMessage"
           @save-file="saveFile"
@@ -51,22 +58,18 @@
         <div class="preview-head">
           <div>
             <p class="panel-title">Live Preview</p>
-            <p class="subtle" v-if="previewSessionId">
-              Session {{ previewSessionId }}
-            </p>
           </div>
           <p class="status-ok" v-if="previewStatus">{{ previewStatus }}</p>
         </div>
 
-        <div v-if="previewSessionId" class="preview-frame-wrap">
+        <div class="preview-frame-wrap">
           <iframe
             class="preview-frame"
-            :src="previewFrameSrc"
+            :src="previewUrl"
             title="Site preview"
+            @load="onPreviewFrameLoad"
           />
         </div>
-
-        <p v-else class="no-preview">NO PREVIEW</p>
       </section>
     </section>
   </main>
@@ -80,21 +83,22 @@ import FileTreeExplorer from "../components/FileTreeExplorer.vue";
 import GitHubAuthCard from "../components/GitHubAuthCard.vue";
 import RepoSelect from "../components/RepoSelect.vue";
 import {
-  createPreviewSession,
-  deletePreviewSession,
   getCmsConfigs,
+  getLocalCmsConfigs,
   getRepos,
   getSession,
   logout,
   saveCmsFile,
-  updatePreviewFile,
 } from "../services/githubApi";
 import type {
   CmsConfigDocument,
   CmsConfigFile,
+  CmsField,
   RepoSummary,
   SessionResponse,
 } from "../types/cms";
+
+const PREVIEW_MSG_TYPE = "typescriptcms:preview-update";
 
 interface SavePayload {
   owner: string;
@@ -108,8 +112,20 @@ interface PreviewChangePayload {
   content: CmsConfigDocument;
 }
 
-const defaultPreviewUrl =
-  import.meta.env.VITE_EXAMPLE_PREVIEW_URL ?? "http://localhost:5175";
+const previewUrl =
+  import.meta.env.VITE_EXAMPLE_PREVIEW_URL ?? "http://localhost:5173";
+
+function extractFieldValues(content: CmsConfigDocument): Record<string, unknown> {
+  const fields: Record<string, unknown> = {};
+
+  for (const [key, field] of Object.entries(content)) {
+    if ((field as CmsField).value !== undefined) {
+      fields[key] = (field as CmsField).value;
+    }
+  }
+
+  return fields;
+}
 
 export default defineComponent({
   name: "AdminPage",
@@ -121,6 +137,7 @@ export default defineComponent({
   },
   data() {
     return {
+      localMode: false,
       checkingSession: true,
       session: null as SessionResponse | null,
       repos: [] as RepoSummary[],
@@ -129,30 +146,12 @@ export default defineComponent({
       cmsFiles: [] as CmsConfigFile[],
       errorMessage: "",
       saveMessage: "",
-      previewSessionId: "",
       previewStatus: "",
-      previewRevision: 0,
-      previewSyncTimers: {} as Record<string, number>,
-      previewSessionLoading: false,
+      previewUrl,
     };
-  },
-  computed: {
-    previewFrameSrc(): string {
-      if (!this.previewSessionId) {
-        return "";
-      }
-
-      const url = new URL(defaultPreviewUrl);
-      url.searchParams.set("previewSession", this.previewSessionId);
-      url.searchParams.set("previewRev", String(this.previewRevision));
-      return url.toString();
-    },
   },
   async created() {
     await this.initialize();
-  },
-  beforeUnmount() {
-    this.clearPreviewSyncTimers();
   },
   methods: {
     async initialize() {
@@ -161,8 +160,11 @@ export default defineComponent({
 
       try {
         this.session = await getSession();
+        this.localMode = this.session.local === true;
 
-        if (this.session.authenticated) {
+        if (this.localMode) {
+          this.cmsFiles = await getLocalCmsConfigs();
+        } else if (this.session.authenticated) {
           this.repos = await getRepos();
         }
       } catch (error) {
@@ -172,66 +174,37 @@ export default defineComponent({
       }
     },
     startLogin() {
-      window.location.assign("/auth/github");
+      window.location.assign("/admin/auth/github");
     },
-    clearPreviewSyncTimers() {
-      for (const timerId of Object.values(this.previewSyncTimers)) {
-        window.clearTimeout(timerId);
-      }
+    postToPreview(configPath: string, content: CmsConfigDocument) {
+      const iframe = this.$el?.querySelector?.(
+        "iframe.preview-frame",
+      ) as HTMLIFrameElement | null;
 
-      this.previewSyncTimers = {};
+      if (!iframe?.contentWindow) return;
+
+      iframe.contentWindow.postMessage(
+        {
+          type: PREVIEW_MSG_TYPE,
+          configPath,
+          fields: extractFieldValues(content),
+        },
+        "*",
+      );
     },
-    async closePreviewSession() {
-      const previousSessionId = this.previewSessionId;
-
-      this.previewSessionId = "";
-      this.previewStatus = "";
-      this.previewRevision = 0;
-      this.previewSessionLoading = false;
-      this.clearPreviewSyncTimers();
-
-      if (!previousSessionId) {
-        return;
-      }
-
-      try {
-        await deletePreviewSession(previousSessionId);
-      } catch {
-        // Non-fatal cleanup failure.
+    onPreviewFrameLoad() {
+      for (const file of this.cmsFiles) {
+        if (file.config) {
+          this.postToPreview(file.path, file.config);
+        }
       }
     },
-    async openPreviewSession(owner: string, repo: string) {
-      this.previewSessionLoading = true;
-
-      try {
-        const previewSession = await createPreviewSession({ owner, repo });
-        this.previewSessionId = previewSession.sessionId;
-        this.previewStatus = "Preview session active";
-        this.previewRevision += 1;
-      } finally {
-        this.previewSessionLoading = false;
-      }
-    },
-    async ensurePreviewSession(): Promise<boolean> {
-      if (this.previewSessionId) {
-        return true;
-      }
-
-      if (!this.selectedRepo || this.previewSessionLoading) {
-        return false;
-      }
-
-      try {
-        await this.openPreviewSession(this.selectedRepo.owner, this.selectedRepo.name);
-        return Boolean(this.previewSessionId);
-      } catch (error) {
-        this.errorMessage = (error as Error).message;
-        return false;
-      }
+    onPreviewChange(payload: PreviewChangePayload) {
+      this.postToPreview(payload.path, payload.content);
+      this.previewStatus = `Preview updated ${new Date().toLocaleTimeString()}`;
     },
     async disconnect() {
       await logout();
-      await this.closePreviewSession();
       this.session = { authenticated: false };
       this.repos = [];
       this.selectedRepo = null;
@@ -246,17 +219,6 @@ export default defineComponent({
       this.cmsFiles = [];
       this.saveMessage = "";
       this.errorMessage = "";
-      await this.closePreviewSession();
-
-      if (!repo || !this.session?.authenticated) {
-        return;
-      }
-
-      try {
-        await this.openPreviewSession(repo.owner, repo.name);
-      } catch (error) {
-        this.errorMessage = (error as Error).message;
-      }
     },
     async onFolderSelect(path: string) {
       this.selectedFolder = path;
@@ -273,65 +235,9 @@ export default defineComponent({
           this.selectedRepo.name,
           path,
         );
-
-        for (const file of this.cmsFiles) {
-          if (!file.config) {
-            continue;
-          }
-
-          void this.queuePreviewSync(
-            {
-              path: file.path,
-              content: file.config,
-            },
-            false,
-          );
-        }
       } catch (error) {
         this.errorMessage = (error as Error).message;
       }
-    },
-    async queuePreviewSync(payload: PreviewChangePayload, debounce = true) {
-      const hasSession = await this.ensurePreviewSession();
-
-      if (!hasSession || !this.previewSessionId) {
-        return;
-      }
-
-      const draft = {
-        path: payload.path,
-        content: JSON.parse(JSON.stringify(payload.content)) as CmsConfigDocument,
-      };
-
-      const runSync = async () => {
-        try {
-          await updatePreviewFile({
-            sessionId: this.previewSessionId,
-            path: draft.path,
-            content: draft.content,
-          });
-          this.previewRevision += 1;
-          this.previewStatus = `Preview updated ${new Date().toLocaleTimeString()}`;
-        } catch (error) {
-          this.errorMessage = (error as Error).message;
-        }
-      };
-
-      if (!debounce) {
-        await runSync();
-        return;
-      }
-
-      if (this.previewSyncTimers[draft.path]) {
-        window.clearTimeout(this.previewSyncTimers[draft.path]);
-      }
-
-      this.previewSyncTimers[draft.path] = window.setTimeout(() => {
-        void runSync();
-      }, 250);
-    },
-    onPreviewChange(payload: PreviewChangePayload) {
-      void this.queuePreviewSync(payload);
     },
     async saveFile(
       payload: SavePayload,
@@ -342,11 +248,13 @@ export default defineComponent({
 
       try {
         await saveCmsFile({
-          owner: payload.owner,
-          repo: payload.repo,
+          owner: this.localMode ? undefined : payload.owner,
+          repo: this.localMode ? undefined : payload.repo,
           path: payload.path,
           content: payload.content,
-          message: `Update ${payload.path} from TypeScript CMS admin`,
+          message: this.localMode
+            ? undefined
+            : `Update ${payload.path} from TypeScript CMS admin`,
         });
         this.saveMessage = `Saved ${payload.path}`;
         onSuccess();
@@ -430,18 +338,6 @@ export default defineComponent({
   min-height: 900px;
   border: 0;
   background: #fff;
-}
-
-.no-preview {
-  margin: 0;
-  border: 1px dashed var(--border);
-  border-radius: 12px;
-  min-height: 900px;
-  display: grid;
-  place-items: center;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  color: var(--subtle);
 }
 
 .editor-controls {

@@ -16,6 +16,8 @@
     "build": "npm run build --workspace @typescriptcms/library && npm run build --workspace @typescriptcms/example && npm run build --workspace @typescriptcms/admin",
     "build:admin": "npm run build --workspace @typescriptcms/admin",
     "build:example": "npm run build --workspace @typescriptcms/example",
+    "build:example-vue": "npm run build --workspace @typescriptcms/example-vue",
+    "dev:example-vue": "npm run dev --workspace @typescriptcms/example-vue",
     "build:library": "npm run build --workspace @typescriptcms/library"
   }
 }

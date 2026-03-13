@@ -25,7 +25,11 @@ async function findConfigFiles(dir) {
   return files;
 }
 
-async function updateFiles(cmsDirectory) {
+function toVarName(registryKey) {
+  return "_" + registryKey.replace(/[/\\]/g, "_");
+}
+
+async function updateFiles(cmsDirectory, framework) {
   const configPaths = await findConfigFiles(cmsDirectory);
 
   for (const jsonPath of configPaths) {
@@ -79,10 +83,108 @@ async function updateFiles(cmsDirectory) {
 
     await fs.writeFile(tsFilePath, tsContent, "utf-8");
   }
+
+  await generateIndex(cmsDirectory, configPaths, framework);
+}
+
+async function generateIndex(cmsDirectory, configPaths, framework) {
+  const entries = configPaths.map((absPath) => {
+    const relative = path.relative(cmsDirectory, absPath);
+    const registryKey = relative.replace(/\.config\.json$/, "").replace(/\\/g, "/");
+    const importPath = "./" + registryKey.replace(/\\/g, "/");
+    const varName = toVarName(registryKey);
+    return { registryKey, importPath, varName };
+  });
+
+  entries.sort((a, b) => a.registryKey.localeCompare(b.registryKey));
+
+  const lines =
+    framework === "vue"
+      ? generateVueIndex(entries)
+      : generateReactIndex(entries);
+
+  const indexPath = path.join(cmsDirectory, "index.ts");
+  await fs.writeFile(indexPath, lines.join("\n"), "utf-8");
+}
+
+function generateContentRegistry(entries) {
+  const lines = [];
+
+  for (const entry of entries) {
+    lines.push(`import ${entry.varName} from ${JSON.stringify(entry.importPath)};`);
+  }
+
+  lines.push(``);
+  lines.push(`type ContentMap = {`);
+  for (const entry of entries) {
+    lines.push(`  ${JSON.stringify(entry.registryKey)}: typeof ${entry.varName};`);
+  }
+  lines.push(`};`);
+
+  lines.push(``);
+  lines.push(`const content = {`);
+  for (const entry of entries) {
+    lines.push(`  ${JSON.stringify(entry.registryKey)}: ${entry.varName},`);
+  }
+  lines.push(`} satisfies ContentMap;`);
+
+  return lines;
+}
+
+function generateReactIndex(entries) {
+  const lines = [
+    `import { useState, useEffect } from "react";`,
+    `import { onPreviewMessage } from "@typescriptcms/library/preview";`,
+    ``,
+    ...generateContentRegistry(entries),
+    ``,
+    `export function useCmsContent<K extends keyof ContentMap>(path: K): ContentMap[K] {`,
+    `  const initial = content[path];`,
+    `  const [state, setState] = useState(initial);`,
+    ``,
+    `  useEffect(() => {`,
+    `    setState(content[path]);`,
+    ``,
+    `    return onPreviewMessage(\`\${String(path)}.config.json\`, (fields: Record<string, unknown>) => {`,
+    `      setState((prev) => ({ ...prev, ...fields }));`,
+    `    });`,
+    `  }, [path]);`,
+    ``,
+    `  return state;`,
+    `}`,
+    ``,
+  ];
+  return lines;
+}
+
+function generateVueIndex(entries) {
+  const lines = [
+    `import { ref, onUnmounted, type Ref } from "vue";`,
+    `import { onPreviewMessage } from "@typescriptcms/library/preview";`,
+    ``,
+    ...generateContentRegistry(entries),
+    ``,
+    `export function useCmsContent<K extends keyof ContentMap>(path: K): Ref<ContentMap[K]> {`,
+    `  const state = ref({ ...content[path] }) as Ref<ContentMap[K]>;`,
+    ``,
+    `  const cleanup = onPreviewMessage(\`\${String(path)}.config.json\`, (fields: Record<string, unknown>) => {`,
+    `    state.value = { ...state.value, ...fields } as ContentMap[K];`,
+    `  });`,
+    ``,
+    `  onUnmounted(() => {`,
+    `    cleanup();`,
+    `  });`,
+    ``,
+    `  return state;`,
+    `}`,
+    ``,
+  ];
+  return lines;
 }
 
 export default function typescriptcmsPlugin(options = {}) {
   const cmsDir = options.cmsDir ?? "src/cms";
+  const framework = options.framework ?? "react";
   let rootDir = process.cwd();
 
   async function run() {
@@ -90,7 +192,7 @@ export default function typescriptcmsPlugin(options = {}) {
 
     try {
       await fs.access(cmsDirectory);
-      await updateFiles(cmsDirectory);
+      await updateFiles(cmsDirectory, framework);
     } catch (error) {
       const isMissingDir =
         typeof error === "object" &&

@@ -38,15 +38,15 @@ async function request<T>(url: string, init: RequestInit = {}): Promise<T> {
 }
 
 export function getSession(): Promise<SessionResponse> {
-  return request<SessionResponse>("/api/session");
+  return request<SessionResponse>("/admin/api/session");
 }
 
 export function logout(): Promise<void> {
-  return request<void>("/auth/logout", { method: "POST" });
+  return request<void>("/admin/auth/logout", { method: "POST" });
 }
 
 export async function getRepos(): Promise<RepoSummary[]> {
-  const response = await request<{ repos: RepoSummary[] }>("/api/repos");
+  const response = await request<{ repos: RepoSummary[] }>("/admin/api/repos");
   return response.repos;
 }
 
@@ -61,7 +61,7 @@ export async function getTree(
     params.set("path", treePath);
   }
 
-  const response = await request<{ entries: TreeEntry[] }>(`/api/tree?${params.toString()}`);
+  const response = await request<{ entries: TreeEntry[] }>(`/admin/api/tree?${params.toString()}`);
   return response.entries;
 }
 
@@ -71,30 +71,35 @@ export async function getCmsConfigs(
   folder: string,
 ): Promise<CmsConfigFile[]> {
   const params = new URLSearchParams({ owner, repo, folder });
-  const response = await request<{ files: CmsConfigFile[] }>(`/api/cms-configs?${params.toString()}`);
+  const response = await request<{ files: CmsConfigFile[] }>(`/admin/api/cms-configs?${params.toString()}`);
+  return response.files;
+}
+
+export async function getLocalCmsConfigs(): Promise<CmsConfigFile[]> {
+  const response = await request<{ files: CmsConfigFile[] }>("/admin/api/cms-configs");
   return response.files;
 }
 
 export function saveCmsFile(options: {
-  owner: string;
-  repo: string;
+  owner?: string;
+  repo?: string;
   path: string;
   content: CmsConfigDocument;
   message?: string;
 }): Promise<unknown> {
-  return request<unknown>("/api/cms-config-file", {
+  return request<unknown>("/admin/api/cms-config-file", {
     method: "PUT",
     body: JSON.stringify(options),
   });
 }
 
-export function createPreviewSession(options: {
-  owner: string;
-  repo: string;
+export function createPreviewSession(options?: {
+  owner?: string;
+  repo?: string;
 }): Promise<PreviewSessionResponse> {
-  return request<PreviewSessionResponse>("/api/preview/sessions", {
+  return request<PreviewSessionResponse>("/admin/api/preview/sessions", {
     method: "POST",
-    body: JSON.stringify(options),
+    body: JSON.stringify(options ?? {}),
   });
 }
 
@@ -103,7 +108,7 @@ export function updatePreviewFile(options: {
   path: string;
   content: CmsConfigDocument;
 }): Promise<unknown> {
-  return request<unknown>(`/api/preview/sessions/${encodeURIComponent(options.sessionId)}/file`, {
+  return request<unknown>(`/admin/api/preview/sessions/${encodeURIComponent(options.sessionId)}/file`, {
     method: "PUT",
     body: JSON.stringify({
       path: options.path,
@@ -114,12 +119,12 @@ export function updatePreviewFile(options: {
 
 export function getPreviewSnapshot(sessionId: string): Promise<PreviewSnapshotResponse> {
   return request<PreviewSnapshotResponse>(
-    `/api/preview/sessions/${encodeURIComponent(sessionId)}/snapshot`,
+    `/admin/api/preview/sessions/${encodeURIComponent(sessionId)}/snapshot`,
   );
 }
 
 export function deletePreviewSession(sessionId: string): Promise<void> {
-  return request<void>(`/api/preview/sessions/${encodeURIComponent(sessionId)}`, {
+  return request<void>(`/admin/api/preview/sessions/${encodeURIComponent(sessionId)}`, {
     method: "DELETE",
   });
 }

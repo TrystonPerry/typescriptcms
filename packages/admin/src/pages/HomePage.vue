@@ -5,9 +5,9 @@
       <h1>TypeScript CMS Admin</h1>
       <p>
         Connect GitHub, select a repository, choose your CMS folder, and edit
-        `.config.json` specs on <span class="monospace">/admin</span>.
+        `.config.json` specs on <span class="monospace">/editor</span>.
       </p>
-      <router-link class="btn btn-primary" to="/admin">Open Admin</router-link>
+      <router-link class="btn btn-primary" to="/editor">Open Admin</router-link>
     </section>
   </main>
 </template>

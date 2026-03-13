@@ -1,0 +1,57 @@
+{
+  "title": {
+    "type": "string",
+    "title": "Site Title",
+    "description": "The main title of the website.",
+    "maxLength": 60,
+    "minLength": 1,
+    "default": "TypeScript CMS",
+    "value": "TypeScript CMS"
+  },
+  "description": {
+    "type": "string",
+    "title": "Description",
+    "description": "A brief description of the website.",
+    "maxLength": 200,
+    "minLength": 10,
+    "default": "A simple CMS built with TypeScript",
+    "value": "A simple CMS built with TypeScript"
+  },
+  "author": {
+    "type": "string",
+    "title": "Author Name",
+    "description": "Name of the website author or owner.",
+    "maxLength": 50,
+    "minLength": 2,
+    "default": "John Doe",
+    "value": "John Smith"
+  },
+  "version": {
+    "type": "string",
+    "title": "Version",
+    "description": "The current version of the site.",
+    "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+    "default": "1.0.0",
+    "value": "1.0.5"
+  },
+  "license": {
+    "type": "enum",
+    "title": "License",
+    "description": "The software license for the site.",
+    "enum": [
+      "MIT",
+      "GPL-3.0",
+      "Apache-2.0",
+      "BSD-3-Clause"
+    ],
+    "default": "MIT",
+    "value": "Apache-2.0"
+  },
+  "cardColor": {
+    "type": "string",
+    "title": "Card Color",
+    "description": "The color of the card.",
+    "default": "#252d37",
+    "value": "#252d37"
+  }
+}

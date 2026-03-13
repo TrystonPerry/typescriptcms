@@ -4,10 +4,12 @@
   "type": "module",
   "main": "./src/plugin.js",
   "exports": {
-    ".": "./src/plugin.js"
+    ".": "./src/plugin.js",
+    "./preview": "./src/preview.js"
   },
   "files": [
     "src/plugin.js",
+    "src/preview.js",
     "README.md"
   ],
   "scripts": {

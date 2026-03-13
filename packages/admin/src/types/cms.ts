@@ -7,6 +7,7 @@ export interface GitHubUser {
 
 export interface SessionResponse {
   authenticated: boolean;
+  local?: boolean;
   user?: GitHubUser;
 }
 
