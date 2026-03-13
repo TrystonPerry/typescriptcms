@@ -1,0 +1,45 @@
+{
+  "seo": {
+    "title": "About Us | TypeScript CMS Example",
+    "description": "Learn about the TypeScript CMS example project and how it works."
+  },
+  "sections": [
+    {
+      "component": "PageHero",
+      "props": {
+        "title": "About Us",
+        "backgroundImage": "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1200",
+        "ctaText": "Get Started",
+        "ctaTo": "/"
+      }
+    },
+    {
+      "component": "SplitSection",
+      "props": {
+        "imagePosition": "left",
+        "imageSrc": "https://images.unsplash.com/photo-1461749280684-dccba630e2f6?w=600",
+        "imageAlt": "Code on a screen",
+        "title": "Built with TypeScript",
+        "text": "TypeScript CMS generates fully typed content modules from simple JSON config files. Edit content in the admin panel and see changes reflected instantly in your app through live preview."
+      }
+    },
+    {
+      "component": "SplitSection",
+      "props": {
+        "imagePosition": "right",
+        "imageSrc": "https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=600",
+        "imageAlt": "Developer workspace",
+        "title": "Framework Agnostic",
+        "text": "Works with React, Next.js, Vue, and Nuxt. The same CMS config files and admin panel work across all frameworks — just change the framework option in your build config."
+      }
+    },
+    {
+      "component": "CtaSection",
+      "props": {
+        "title": "Ready to try it?",
+        "subtitle": "Get started with TypeScript CMS in minutes",
+        "decorativeImage": ""
+      }
+    }
+  ]
+}

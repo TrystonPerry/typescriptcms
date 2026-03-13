@@ -7,6 +7,9 @@ const adminServerTarget =
 
 export default defineConfig({
   base: "/admin/",
+  build: {
+    outDir: "dist/client",
+  },
   plugins: [vue()],
   server: {
     port: 5500,

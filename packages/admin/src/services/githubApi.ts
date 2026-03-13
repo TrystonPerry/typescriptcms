@@ -1,6 +1,8 @@
 import type {
   CmsConfigDocument,
   CmsConfigFile,
+  PageData,
+  PageFile,
   PreviewSessionResponse,
   PreviewSnapshotResponse,
   RepoSummary,
@@ -88,6 +90,51 @@ export function saveCmsFile(options: {
   message?: string;
 }): Promise<unknown> {
   return request<unknown>("/admin/api/cms-config-file", {
+    method: "PUT",
+    body: JSON.stringify(options),
+  });
+}
+
+export async function getComponentSchemas(
+  owner?: string,
+  repo?: string,
+  folder?: string,
+): Promise<Record<string, CmsConfigDocument>> {
+  const params = new URLSearchParams();
+  if (owner) params.set("owner", owner);
+  if (repo) params.set("repo", repo);
+  if (folder) params.set("folder", folder);
+  const qs = params.toString();
+  const response = await request<{ components: Record<string, CmsConfigDocument> }>(
+    `/admin/api/cms-components${qs ? `?${qs}` : ""}`,
+  );
+  return response.components;
+}
+
+export async function getPageFiles(
+  owner?: string,
+  repo?: string,
+  folder?: string,
+): Promise<PageFile[]> {
+  const params = new URLSearchParams();
+  if (owner) params.set("owner", owner);
+  if (repo) params.set("repo", repo);
+  if (folder) params.set("folder", folder);
+  const qs = params.toString();
+  const response = await request<{ files: PageFile[] }>(
+    `/admin/api/cms-pages${qs ? `?${qs}` : ""}`,
+  );
+  return response.files;
+}
+
+export function savePageFile(options: {
+  path: string;
+  page: PageData;
+  owner?: string;
+  repo?: string;
+  message?: string;
+}): Promise<unknown> {
+  return request<unknown>("/admin/api/cms-page-file", {
     method: "PUT",
     body: JSON.stringify(options),
   });

@@ -1,0 +1,28 @@
+{
+  "imagePosition": {
+    "type": "enum",
+    "title": "Image Position",
+    "enum": ["left", "right"],
+    "default": "left"
+  },
+  "imageSrc": {
+    "type": "string",
+    "title": "Image URL",
+    "default": ""
+  },
+  "imageAlt": {
+    "type": "string",
+    "title": "Image Alt Text",
+    "default": ""
+  },
+  "title": {
+    "type": "string",
+    "title": "Section Title",
+    "default": ""
+  },
+  "text": {
+    "type": "string",
+    "title": "Body Text",
+    "default": ""
+  }
+}

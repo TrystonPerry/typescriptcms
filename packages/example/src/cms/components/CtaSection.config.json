@@ -1,0 +1,17 @@
+{
+  "title": {
+    "type": "string",
+    "title": "CTA Title",
+    "default": ""
+  },
+  "subtitle": {
+    "type": "string",
+    "title": "CTA Subtitle",
+    "default": ""
+  },
+  "decorativeImage": {
+    "type": "string",
+    "title": "Decorative Image URL",
+    "default": ""
+  }
+}

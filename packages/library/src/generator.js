@@ -5,19 +5,31 @@ function toVarName(registryKey) {
   return "_" + registryKey.replace(/[/\\]/g, "_");
 }
 
-async function findConfigFiles(dir) {
-  const entries = await fs.readdir(dir, { withFileTypes: true });
+function toPascalCase(name) {
+  return name
+    .replace(/(?:^|[-_/\\])(\w)/g, (_, c) => c.toUpperCase())
+    .replace(/[^A-Za-z0-9]/g, "");
+}
+
+async function findFiles(dir, suffix) {
+  let entries;
+  try {
+    entries = await fs.readdir(dir, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+
   const files = [];
 
   for (const entry of entries) {
     const fullPath = path.join(dir, entry.name);
 
     if (entry.isDirectory()) {
-      files.push(...(await findConfigFiles(fullPath)));
+      files.push(...(await findFiles(fullPath, suffix)));
       continue;
     }
 
-    if (entry.isFile() && entry.name.endsWith(".config.json")) {
+    if (entry.isFile() && entry.name.endsWith(suffix)) {
       files.push(fullPath);
     }
   }
@@ -25,51 +37,64 @@ async function findConfigFiles(dir) {
   return files;
 }
 
-async function updateFiles(cmsDirectory, framework) {
-  const configPaths = await findConfigFiles(cmsDirectory);
+// ── Config field → TS type string ───────────────────────
 
-  for (const jsonPath of configPaths) {
+function fieldToTsType(item) {
+  switch (item.type) {
+    case "string":
+      return "string";
+    case "enum": {
+      if (!Array.isArray(item.enum) || item.enum.length === 0) {
+        throw new Error("Enum values are required");
+      }
+      return item.enum.map((v) => JSON.stringify(String(v))).join(" | ");
+    }
+    default:
+      return "unknown";
+  }
+}
+
+function fieldToValueLiteral(item) {
+  if (item.value === undefined) {
+    if (item.default === undefined) {
+      throw new Error("Default value is required");
+    }
+    item.value = item.default;
+  }
+
+  switch (item.type) {
+    case "string":
+      return `${JSON.stringify(String(item.value))} as const`;
+    case "enum": {
+      if (!Array.isArray(item.enum) || item.enum.length === 0) {
+        throw new Error("Enum values are required");
+      }
+      const enumType = item.enum.map((v) => JSON.stringify(String(v))).join(" | ");
+      return `${JSON.stringify(String(item.value))} as ${enumType}`;
+    }
+    default:
+      throw new Error(`Invalid type: ${item.type}`);
+  }
+}
+
+// ── Content configs (existing .config.json outside components/) ──
+
+async function processContentConfigs(cmsDirectory, framework) {
+  const componentsDir = path.join(cmsDirectory, "components");
+  const allConfigs = await findFiles(cmsDirectory, ".config.json");
+
+  const contentConfigs = allConfigs.filter(
+    (f) => !f.startsWith(componentsDir + path.sep) && !f.startsWith(componentsDir + "/"),
+  );
+
+  for (const jsonPath of contentConfigs) {
     const jsonContent = await fs.readFile(jsonPath, "utf-8");
     const jsonData = JSON.parse(jsonContent);
 
     const properties = [];
 
     for (const key of Object.keys(jsonData)) {
-      const item = jsonData[key];
-
-      if (!item.type) {
-        throw new Error(`Type is required for ${key}`);
-      }
-
-      if (item.value === undefined) {
-        if (item.default === undefined) {
-          throw new Error(`Default value is required for ${key}`);
-        }
-
-        item.value = item.default;
-      }
-
-      switch (item.type) {
-        case "string":
-          properties.push(`${key}: ${JSON.stringify(String(item.value))} as const`);
-          break;
-        case "enum": {
-          if (!Array.isArray(item.enum) || item.enum.length === 0) {
-            throw new Error(`Enum values are required for ${key}`);
-          }
-
-          const enumValues = item.enum
-            .map((value) => JSON.stringify(String(value)))
-            .join(" | ");
-
-          properties.push(
-            `${key}: ${JSON.stringify(String(item.value))} as ${enumValues}`,
-          );
-          break;
-        }
-        default:
-          throw new Error(`Invalid type: ${item.type}`);
-      }
+      properties.push(`${key}: ${fieldToValueLiteral(jsonData[key])}`);
     }
 
     const tsFilePath = jsonPath.replace(/\.config\.json$/, ".ts");
@@ -80,11 +105,127 @@ async function updateFiles(cmsDirectory, framework) {
     await fs.writeFile(tsFilePath, tsContent, "utf-8");
   }
 
-  await generateIndex(cmsDirectory, configPaths, framework);
+  return contentConfigs;
 }
 
-async function generateIndex(cmsDirectory, configPaths, framework) {
-  const entries = configPaths.map((absPath) => {
+// ── Component configs (components/*.config.json) ─────────
+
+async function processComponentConfigs(cmsDirectory) {
+  const componentsDir = path.join(cmsDirectory, "components");
+  const configPaths = await findFiles(componentsDir, ".config.json");
+
+  const components = [];
+
+  for (const jsonPath of configPaths) {
+    const jsonContent = await fs.readFile(jsonPath, "utf-8");
+    const jsonData = JSON.parse(jsonContent);
+
+    const name = path.basename(jsonPath, ".config.json");
+    const interfaceName = toPascalCase(name) + "Props";
+
+    const fields = [];
+    for (const key of Object.keys(jsonData)) {
+      const item = jsonData[key];
+      if (!item.type) {
+        fields.push({ key, tsType: "unknown" });
+      } else {
+        fields.push({ key, tsType: fieldToTsType(item) });
+      }
+    }
+
+    components.push({ name, interfaceName, fields, configPath: jsonPath });
+  }
+
+  components.sort((a, b) => a.name.localeCompare(b.name));
+
+  if (components.length > 0) {
+    const lines = [];
+
+    for (const comp of components) {
+      lines.push(`export interface ${comp.interfaceName} {`);
+      for (const field of comp.fields) {
+        lines.push(`  ${field.key}: ${field.tsType};`);
+      }
+      lines.push(`  [key: string]: unknown;`);
+      lines.push(`}`);
+      lines.push(``);
+    }
+
+    lines.push(`export type ComponentRegistry = {`);
+    for (const comp of components) {
+      lines.push(`  ${comp.name}: ${comp.interfaceName};`);
+    }
+    lines.push(`};`);
+    lines.push(``);
+
+    lines.push(`export type ComponentName = keyof ComponentRegistry;`);
+    lines.push(``);
+
+    lines.push(`export type Section = {`);
+    lines.push(`  [K in ComponentName]: { component: K; props: ComponentRegistry[K] }`);
+    lines.push(`}[ComponentName];`);
+    lines.push(``);
+
+    const indexPath = path.join(componentsDir, "index.ts");
+    await fs.writeFile(indexPath, lines.join("\n"), "utf-8");
+  }
+
+  return components;
+}
+
+// ── Page files (*.page.json) ─────────────────────────────
+
+async function processPageFiles(cmsDirectory, components, framework) {
+  const pageFiles = await findFiles(cmsDirectory, ".page.json");
+
+  for (const jsonPath of pageFiles) {
+    const jsonContent = await fs.readFile(jsonPath, "utf-8");
+    const jsonData = JSON.parse(jsonContent);
+
+    const tsFilePath = jsonPath.replace(/\.page\.json$/, ".page.ts");
+
+    const lines = [];
+
+    if (components.length > 0) {
+      lines.push(`import type { Section } from "./components";`);
+
+      const relFromFile = path.relative(path.dirname(jsonPath), path.join(cmsDirectory, "components"));
+      const importPath = "./" + relFromFile.replace(/\\/g, "/");
+      lines[0] = `import type { Section } from ${JSON.stringify(importPath)};`;
+    }
+
+    lines.push(``);
+    lines.push(`export interface PageSeo {`);
+    lines.push(`  title: string;`);
+    lines.push(`  description: string;`);
+    lines.push(`  ogTitle?: string;`);
+    lines.push(`  ogDescription?: string;`);
+    lines.push(`  ogImage?: string;`);
+    lines.push(`  [key: string]: unknown;`);
+    lines.push(`}`);
+    lines.push(``);
+
+    lines.push(`export interface Page {`);
+    lines.push(`  seo: PageSeo;`);
+    lines.push(`  sections: Section[];`);
+    lines.push(`}`);
+    lines.push(``);
+
+    lines.push(`const page: Page = ${JSON.stringify(jsonData, null, 2)};`);
+    lines.push(``);
+    lines.push(`export default page;`);
+    lines.push(``);
+
+    await fs.writeFile(tsFilePath, lines.join("\n"), "utf-8");
+  }
+
+  return pageFiles;
+}
+
+// ── Index generation (content hook + page hook) ──────────
+
+async function generateContentIndex(cmsDirectory, contentConfigs, framework) {
+  const entries = contentConfigs.map((absPath) => {
     const relative = path.relative(cmsDirectory, absPath);
     const registryKey = relative.replace(/\.config\.json$/, "").replace(/\\/g, "/");
     const importPath = "./" + registryKey.replace(/\\/g, "/");
@@ -94,14 +235,40 @@ async function generateIndex(cmsDirectory, configPaths, framework) {
 
   entries.sort((a, b) => a.registryKey.localeCompare(b.registryKey));
 
+  if (entries.length === 0) return;
+
   const lines =
     framework === "vue"
-      ? generateVueIndex(entries)
-      : generateReactIndex(entries);
+      ? generateVueContentIndex(entries)
+      : generateReactContentIndex(entries);
 
   const indexPath = path.join(cmsDirectory, "index.ts");
   await fs.writeFile(indexPath, lines.join("\n"), "utf-8");
 }
+
+async function generatePageIndex(cmsDirectory, pageFiles, framework) {
+  if (pageFiles.length === 0) return;
+
+  const entries = pageFiles.map((absPath) => {
+    const relative = path.relative(cmsDirectory, absPath);
+    const registryKey = relative.replace(/\.page\.json$/, "").replace(/\\/g, "/");
+    const importPath = "./" + registryKey.replace(/\\/g, "/") + ".page";
+    const varName = toVarName(registryKey) + "_page";
+    return { registryKey, importPath, varName };
+  });
+
+  entries.sort((a, b) => a.registryKey.localeCompare(b.registryKey));
+
+  const lines =
+    framework === "vue"
+      ? generateVuePageIndex(entries)
+      : generateReactPageIndex(entries);
+
+  const pagesIndexPath = path.join(cmsDirectory, "pages.ts");
+  await fs.writeFile(pagesIndexPath, lines.join("\n"), "utf-8");
+}
+
+// ── Content index generators (React / Vue) ───────────────
 
 function generateContentRegistry(entries) {
   const lines = [];
@@ -127,8 +294,8 @@ function generateContentRegistry(entries) {
   return lines;
 }
 
-function generateReactIndex(entries) {
-  const lines = [
+function generateReactContentIndex(entries) {
+  return [
     `import { useState, useEffect } from "react";`,
     `import { onPreviewMessage } from "@typescriptcms/library/preview";`,
     ``,
@@ -150,11 +317,10 @@ function generateReactIndex(entries) {
     `}`,
     ``,
   ];
-  return lines;
 }
 
-function generateVueIndex(entries) {
-  const lines = [
+function generateVueContentIndex(entries) {
+  return [
     `import { ref, onUnmounted, type Ref } from "vue";`,
     `import { onPreviewMessage } from "@typescriptcms/library/preview";`,
     ``,
@@ -175,11 +341,91 @@ function generateVueIndex(entries) {
     `}`,
     ``,
   ];
+}
+
+// ── Page index generators (React / Vue) ──────────────────
+
+function generatePageRegistry(entries) {
+  const lines = [];
+
+  lines.push(`import type { Page } from ${JSON.stringify(entries[0].importPath)};`);
+  lines.push(`export type { Page, PageSeo, Section } from ${JSON.stringify(entries[0].importPath)};`);
+  lines.push(``);
+
+  for (const entry of entries) {
+    lines.push(`import ${entry.varName} from ${JSON.stringify(entry.importPath)};`);
+  }
+
+  lines.push(``);
+  lines.push(`type PageMap = {`);
+  for (const entry of entries) {
+    lines.push(`  ${JSON.stringify(entry.registryKey)}: typeof ${entry.varName};`);
+  }
+  lines.push(`};`);
+
+  lines.push(``);
+  lines.push(`const pages = {`);
+  for (const entry of entries) {
+    lines.push(`  ${JSON.stringify(entry.registryKey)}: ${entry.varName},`);
+  }
+  lines.push(`} satisfies Record<string, Page>;`);
+
   return lines;
 }
 
+function generateReactPageIndex(entries) {
+  return [
+    `import { useState, useEffect } from "react";`,
+    `import { onPreviewMessage } from "@typescriptcms/library/preview";`,
+    ``,
+    ...generatePageRegistry(entries),
+    ``,
+    `export function useCmsPage<K extends keyof PageMap>(path: K): PageMap[K] {`,
+    `  const initial = pages[path];`,
+    `  const [state, setState] = useState(initial);`,
+    ``,
+    `  useEffect(() => {`,
+    `    setState(pages[path]);`,
+    ``,
+    `    return onPreviewMessage(\`\${String(path)}.page.json\`, (fields: Record<string, unknown>) => {`,
+    `      setState((prev) => ({ ...prev, ...fields } as PageMap[K]));`,
+    `    });`,
+    `  }, [path]);`,
+    ``,
+    `  return state;`,
+    `}`,
+    ``,
+  ];
+}
+
+function generateVuePageIndex(entries) {
+  return [
+    `import { ref, onUnmounted, type Ref } from "vue";`,
+    `import { onPreviewMessage } from "@typescriptcms/library/preview";`,
+    ``,
+    ...generatePageRegistry(entries),
+    ``,
+    `export function useCmsPage<K extends keyof PageMap>(path: K): Ref<PageMap[K]> {`,
+    `  const state = ref({ ...pages[path] }) as Ref<PageMap[K]>;`,
+    ``,
+    `  const cleanup = onPreviewMessage(\`\${String(path)}.page.json\`, (fields: Record<string, unknown>) => {`,
+    `    state.value = { ...state.value, ...fields } as PageMap[K];`,
+    `  });`,
+    ``,
+    `  onUnmounted(() => {`,
+    `    cleanup();`,
+    `  });`,
+    ``,
+    `  return state;`,
+    `}`,
+    ``,
+  ];
+}
+
+// ── Main entry point ─────────────────────────────────────
+
 /**
- * Generate typed TypeScript files from CMS config JSON files.
+ * Generate typed TypeScript files from CMS config and page JSON files.
  *
  * @param {{ rootDir?: string, cmsDir?: string, framework?: "react" | "vue" }} options
  */
@@ -191,7 +437,6 @@ export async function generate(options = {}) {
 
   try {
     await fs.access(cmsDirectory);
-    await updateFiles(cmsDirectory, framework);
   } catch (error) {
     const isMissingDir =
       typeof error === "object" &&
@@ -199,10 +444,19 @@ export async function generate(options = {}) {
       "code" in error &&
       error.code === "ENOENT";
 
-    if (!isMissingDir) {
-      throw error;
-    }
+    if (isMissingDir) return;
+    throw error;
+  }
+
+  const contentConfigs = await processContentConfigs(cmsDirectory, framework);
+  const components = await processComponentConfigs(cmsDirectory);
+  const pageFiles = await processPageFiles(cmsDirectory, components, framework);
+
+  if (contentConfigs.length > 0) {
+    await generateContentIndex(cmsDirectory, contentConfigs, framework);
+  }
+
+  if (pageFiles.length > 0) {
+    await generatePageIndex(cmsDirectory, pageFiles, framework);
   }
 }
-
-export { findConfigFiles };

@@ -58,6 +58,31 @@ export interface CmsConfigFile {
   parseError?: string;
 }
 
+export interface PageSeo {
+  title: string;
+  description: string;
+  ogTitle?: string;
+  ogDescription?: string;
+  ogImage?: string;
+  [key: string]: unknown;
+}
+
+export interface PageSection {
+  component: string;
+  props: Record<string, unknown>;
+}
+
+export interface PageData {
+  seo: PageSeo;
+  sections: PageSection[];
+}
+
+export interface PageFile {
+  path: string;
+  page: PageData | null;
+  parseError?: string;
+}
+
 export interface PreviewSessionResponse {
   sessionId: string;
   owner: string;

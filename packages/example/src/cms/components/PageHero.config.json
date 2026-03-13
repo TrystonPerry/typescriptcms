@@ -1,0 +1,22 @@
+{
+  "title": {
+    "type": "string",
+    "title": "Hero Title",
+    "default": ""
+  },
+  "backgroundImage": {
+    "type": "string",
+    "title": "Background Image URL",
+    "default": ""
+  },
+  "ctaText": {
+    "type": "string",
+    "title": "CTA Button Text",
+    "default": "Learn More"
+  },
+  "ctaTo": {
+    "type": "string",
+    "title": "CTA Link",
+    "default": "/"
+  }
+}

@@ -5,11 +5,10 @@
         <p class="eyebrow">Admin</p>
         <h1>{{ localMode ? "CMS Editor" : "GitHub CMS Editor" }}</h1>
         <p class="subtle" v-if="localMode">
-          Editing `.config.json` definitions from the local filesystem.
+          Editing CMS content from the local filesystem.
         </p>
         <p class="subtle" v-else>
-          Login, pick a repo, choose the CMS folder, and edit `.config.json`
-          definitions.
+          Login, pick a repo, choose the CMS folder, and edit content.
         </p>
       </div>
       <router-link class="btn btn-ghost" to="/">Back Home</router-link>
@@ -43,7 +42,20 @@
           />
         </template>
 
+        <PageEditor
+          v-if="pageFiles.length"
+          :owner="selectedRepo?.owner || ''"
+          :repo="selectedRepo?.name || ''"
+          :local-mode="localMode"
+          :files="pageFiles"
+          :schemas="componentSchemas"
+          :status-message="pageSaveMessage"
+          @save-page="savePageHandler"
+          @preview-change="onPagePreviewChange"
+        />
+
         <CmsConfigEditor
+          v-if="cmsFiles.length"
           :owner="selectedRepo?.owner || ''"
           :repo="selectedRepo?.name || ''"
           :local-mode="localMode"
@@ -81,19 +93,25 @@ import { defineComponent } from "vue";
 import CmsConfigEditor from "../components/CmsConfigEditor.vue";
 import FileTreeExplorer from "../components/FileTreeExplorer.vue";
 import GitHubAuthCard from "../components/GitHubAuthCard.vue";
+import PageEditor from "../components/PageEditor.vue";
 import RepoSelect from "../components/RepoSelect.vue";
 import {
   getCmsConfigs,
+  getComponentSchemas,
   getLocalCmsConfigs,
+  getPageFiles,
   getRepos,
   getSession,
   logout,
   saveCmsFile,
+  savePageFile,
 } from "../services/githubApi";
 import type {
   CmsConfigDocument,
   CmsConfigFile,
   CmsField,
+  PageData,
+  PageFile,
   RepoSummary,
   SessionResponse,
 } from "../types/cms";
@@ -110,6 +128,18 @@ interface SavePayload {
 interface PreviewChangePayload {
   path: string;
   content: CmsConfigDocument;
+}
+
+interface PageSavePayload {
+  owner: string;
+  repo: string;
+  path: string;
+  page: PageData;
+}
+
+interface PagePreviewPayload {
+  path: string;
+  page: PageData;
 }
 
 const previewUrl =
@@ -134,6 +164,7 @@ export default defineComponent({
     RepoSelect,
     FileTreeExplorer,
     CmsConfigEditor,
+    PageEditor,
   },
   data() {
     return {
@@ -144,8 +175,11 @@ export default defineComponent({
       selectedRepo: null as RepoSummary | null,
       selectedFolder: "",
       cmsFiles: [] as CmsConfigFile[],
+      pageFiles: [] as PageFile[],
+      componentSchemas: {} as Record<string, CmsConfigDocument>,
       errorMessage: "",
       saveMessage: "",
+      pageSaveMessage: "",
       previewStatus: "",
       previewUrl,
     };
@@ -163,7 +197,16 @@ export default defineComponent({
         this.localMode = this.session.local === true;
 
         if (this.localMode) {
-          this.cmsFiles = await getLocalCmsConfigs();
+          const [configs, schemas, pages] = await Promise.all([
+            getLocalCmsConfigs(),
+            getComponentSchemas(),
+            getPageFiles(),
+          ]);
+          this.cmsFiles = configs.filter(
+            (f) => !f.path.startsWith("components/"),
+          );
+          this.componentSchemas = schemas;
+          this.pageFiles = pages;
         } else if (this.session.authenticated) {
           this.repos = await getRepos();
         }
@@ -176,11 +219,13 @@ export default defineComponent({
     startLogin() {
       window.location.assign("/admin/auth/github");
     },
-    postToPreview(configPath: string, content: CmsConfigDocument) {
-      const iframe = this.$el?.querySelector?.(
+    getIframe(): HTMLIFrameElement | null {
+      return this.$el?.querySelector?.(
         "iframe.preview-frame",
       ) as HTMLIFrameElement | null;
-
+    },
+    postToPreview(configPath: string, content: CmsConfigDocument) {
+      const iframe = this.getIframe();
       if (!iframe?.contentWindow) return;
 
       iframe.contentWindow.postMessage(
@@ -192,15 +237,37 @@ export default defineComponent({
         "*",
       );
     },
+    postPageToPreview(pagePath: string, page: PageData) {
+      const iframe = this.getIframe();
+      if (!iframe?.contentWindow) return;
+
+      iframe.contentWindow.postMessage(
+        {
+          type: PREVIEW_MSG_TYPE,
+          configPath: pagePath,
+          fields: page,
+        },
+        "*",
+      );
+    },
     onPreviewFrameLoad() {
       for (const file of this.cmsFiles) {
         if (file.config) {
           this.postToPreview(file.path, file.config);
         }
       }
+      for (const file of this.pageFiles) {
+        if (file.page) {
+          this.postPageToPreview(file.path, file.page);
+        }
+      }
     },
     onPreviewChange(payload: PreviewChangePayload) {
       this.postToPreview(payload.path, payload.content);
+      this.previewStatus = `Preview updated ${new Date().toLocaleTimeString()}`;
+    },
+    onPagePreviewChange(payload: PagePreviewPayload) {
+      this.postPageToPreview(payload.path, payload.page);
       this.previewStatus = `Preview updated ${new Date().toLocaleTimeString()}`;
     },
     async disconnect() {
@@ -210,31 +277,44 @@ export default defineComponent({
       this.selectedRepo = null;
       this.selectedFolder = "";
       this.cmsFiles = [];
+      this.pageFiles = [];
+      this.componentSchemas = {};
       this.saveMessage = "";
+      this.pageSaveMessage = "";
       this.errorMessage = "";
     },
     async onRepoSelect(repo: RepoSummary | null) {
       this.selectedRepo = repo;
       this.selectedFolder = "";
       this.cmsFiles = [];
+      this.pageFiles = [];
+      this.componentSchemas = {};
       this.saveMessage = "";
+      this.pageSaveMessage = "";
       this.errorMessage = "";
     },
-    async onFolderSelect(path: string) {
-      this.selectedFolder = path;
+    async onFolderSelect(folderPath: string) {
+      this.selectedFolder = folderPath;
       this.saveMessage = "";
+      this.pageSaveMessage = "";
       this.errorMessage = "";
 
-      if (!this.selectedRepo) {
-        return;
-      }
+      if (!this.selectedRepo) return;
+
+      const owner = this.selectedRepo.owner;
+      const repo = this.selectedRepo.name;
 
       try {
-        this.cmsFiles = await getCmsConfigs(
-          this.selectedRepo.owner,
-          this.selectedRepo.name,
-          path,
+        const [configs, schemas, pages] = await Promise.all([
+          getCmsConfigs(owner, repo, folderPath),
+          getComponentSchemas(owner, repo, folderPath),
+          getPageFiles(owner, repo, folderPath),
+        ]);
+        this.cmsFiles = configs.filter(
+          (f) => !f.path.includes("components/"),
         );
+        this.componentSchemas = schemas;
+        this.pageFiles = pages;
       } catch (error) {
         this.errorMessage = (error as Error).message;
       }
@@ -257,6 +337,30 @@ export default defineComponent({
             : `Update ${payload.path} from TypeScript CMS admin`,
         });
         this.saveMessage = `Saved ${payload.path}`;
+        onSuccess();
+      } catch (error) {
+        this.errorMessage = (error as Error).message;
+        onFailure();
+      }
+    },
+    async savePageHandler(
+      payload: PageSavePayload,
+      onSuccess: () => void,
+      onFailure: () => void,
+    ) {
+      this.errorMessage = "";
+
+      try {
+        await savePageFile({
+          owner: this.localMode ? undefined : payload.owner,
+          repo: this.localMode ? undefined : payload.repo,
+          path: payload.path,
+          page: payload.page,
+          message: this.localMode
+            ? undefined
+            : `Update ${payload.path} from TypeScript CMS admin`,
+        });
+        this.pageSaveMessage = `Saved ${payload.path}`;
         onSuccess();
       } catch (error) {
         this.errorMessage = (error as Error).message;

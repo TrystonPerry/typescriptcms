@@ -17,18 +17,16 @@ export default function typescriptcmsPlugin(options = {}) {
     },
     buildStart: run,
     async handleHotUpdate({ file }) {
-      if (!file.endsWith(".config.json")) {
+      if (!file.endsWith(".config.json") && !file.endsWith(".page.json")) {
         return;
       }
 
       await run();
     },
     configureServer(server) {
-      const watchPath = path.join(
-        path.resolve(rootDir, cmsDir),
-        "**/*.config.json",
-      );
-      server.watcher.add(watchPath);
+      const cmsPath = path.resolve(rootDir, cmsDir);
+      server.watcher.add(path.join(cmsPath, "**/*.config.json"));
+      server.watcher.add(path.join(cmsPath, "**/*.page.json"));
     },
   };
 }

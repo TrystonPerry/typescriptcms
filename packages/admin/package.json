@@ -3,6 +3,10 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "exports": {
+    "./server": "./dist/app.js",
+    "./client": "./dist/client/"
+  },
   "scripts": {
     "dev": "concurrently -k \"npm:dev:server\" \"npm:dev:client\"",
     "dev:client": "vite",
@@ -11,7 +15,7 @@
     "build:client": "vite build",
     "build:server": "tsc -p tsconfig.server.json",
     "preview": "vite preview",
-    "start": "node dist-server/index.js"
+    "start": "node dist/index.js"
   },
   "dependencies": {
     "cookie-parser": "^1.4.7",
