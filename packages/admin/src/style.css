@@ -29,10 +29,22 @@ body,
 body {
   font-family: "Space Grotesk", "Helvetica Neue", sans-serif;
   color: var(--text);
-  background:
-    radial-gradient(circle at 15% 15%, rgba(255, 215, 174, 0.45) 0, transparent 35%),
-    radial-gradient(circle at 84% 18%, rgba(193, 221, 255, 0.7) 0, transparent 30%),
+  background: radial-gradient(
+      circle at 15% 15%,
+      rgba(255, 215, 174, 0.45) 0,
+      transparent 35%
+    ),
+    radial-gradient(
+      circle at 84% 18%,
+      rgba(193, 221, 255, 0.7) 0,
+      transparent 30%
+    ),
     linear-gradient(160deg, var(--bg-start), var(--bg-end));
+}
+
+button[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .page-shell {

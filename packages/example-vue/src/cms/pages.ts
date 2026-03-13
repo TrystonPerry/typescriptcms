@@ -1,8 +1,8 @@
-import { ref, onUnmounted, type Ref } from "vue";
-import { onPreviewMessage } from "@typescriptcms/library/preview";
+import { ref, type Ref } from "vue";
 
 import type { Page } from "./about.page";
-export type { Page, PageSeo, Section } from "./about.page";
+export type { Page, PageSeo } from "./about.page";
+export type { Section } from "./components";
 
 import _about_page from "./about.page";
 
@@ -16,14 +16,6 @@ const pages = {
 
 export function useCmsPage<K extends keyof PageMap>(path: K): Ref<PageMap[K]> {
   const state = ref({ ...pages[path] }) as Ref<PageMap[K]>;
-
-  const cleanup = onPreviewMessage(`${String(path)}.page.json`, (fields: Record<string, unknown>) => {
-    state.value = { ...state.value, ...fields } as PageMap[K];
-  });
-
-  onUnmounted(() => {
-    cleanup();
-  });
 
   return state;
 }

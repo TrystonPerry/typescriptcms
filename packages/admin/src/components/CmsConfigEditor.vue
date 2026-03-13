@@ -1,35 +1,12 @@
 <template>
   <section class="panel editor-panel">
-    <div class="editor-head">
-      <div>
-        <p class="panel-title">CMS Config Editor</p>
-        <p class="subtle" v-if="localMode">Local filesystem</p>
-      <p class="subtle" v-else-if="owner && repo">{{ owner }}/{{ repo }}</p>
-      </div>
-      <p class="status-ok" v-if="statusMessage">{{ statusMessage }}</p>
-    </div>
+    <p class="status-ok" v-if="statusMessage">{{ statusMessage }}</p>
 
     <p v-if="!docs.length" class="subtle">
       Select a folder to load `.config.json` CMS definitions.
     </p>
 
-    <article
-      v-for="doc in docs"
-      :key="doc.path"
-      class="config-card"
-    >
-      <header class="config-head">
-        <p class="monospace path">{{ doc.path }}</p>
-        <button
-          class="btn btn-primary"
-          type="button"
-          :disabled="!doc.dirty || doc.saving || !doc.config"
-          @click="saveDoc(doc.path)"
-        >
-          {{ doc.saving ? "Saving..." : doc.dirty ? "Save" : "Saved" }}
-        </button>
-      </header>
-
+    <article v-for="doc in docs" :key="doc.path" class="config-card">
       <p v-if="doc.parseError" class="status-error">
         Could not parse this file: {{ doc.parseError }}
       </p>
@@ -57,6 +34,15 @@
             </p>
           </div>
         </section>
+
+        <button
+          class="btn btn-primary"
+          type="button"
+          :disabled="!doc.dirty || doc.saving || !doc.config"
+          @click="saveDoc(doc.path)"
+        >
+          {{ doc.saving ? "Saving..." : doc.dirty ? "Save" : "No Changes" }}
+        </button>
       </div>
     </article>
   </section>
@@ -105,7 +91,7 @@ export default defineComponent({
       default: "",
     },
   },
-  emits: ["save-file", "preview-change"],
+  emits: ["save-file"],
   data() {
     return {
       docs: [] as EditableDoc[],
@@ -153,10 +139,6 @@ export default defineComponent({
 
       target.config[key].value = value;
       target.dirty = true;
-      this.$emit("preview-change", {
-        path: target.path,
-        content: JSON.parse(JSON.stringify(target.config)) as CmsConfigDocument,
-      });
     },
     saveDoc(path: string) {
       const target = this.docs.find((doc) => doc.path === path);
@@ -184,7 +166,7 @@ export default defineComponent({
         },
         () => {
           target.saving = false;
-        },
+        }
       );
     },
   },
@@ -232,14 +214,7 @@ export default defineComponent({
 
 .field-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  grid-template-columns: 1fr;
   gap: 0.75rem;
-}
-
-.field-card {
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 0.75rem;
-  background: var(--panel-muted);
 }
 </style>

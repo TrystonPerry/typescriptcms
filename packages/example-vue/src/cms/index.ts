@@ -1,5 +1,4 @@
-import { ref, onUnmounted, type Ref } from "vue";
-import { onPreviewMessage } from "@typescriptcms/library/preview";
+import { ref, type Ref } from "vue";
 
 import _home from "./home";
 
@@ -13,14 +12,6 @@ const content = {
 
 export function useCmsContent<K extends keyof ContentMap>(path: K): Ref<ContentMap[K]> {
   const state = ref({ ...content[path] }) as Ref<ContentMap[K]>;
-
-  const cleanup = onPreviewMessage(`${String(path)}.config.json`, (fields: Record<string, unknown>) => {
-    state.value = { ...state.value, ...fields } as ContentMap[K];
-  });
-
-  onUnmounted(() => {
-    cleanup();
-  });
 
   return state;
 }
